@@ -67,3 +67,14 @@ def split_frontmatter(raw: str) -> tuple[dict | None, str]:
 def read_frontmatter(vault: Vault, path: Path) -> tuple[dict | None, str]:
     raw = vault.read_text(path)
     return split_frontmatter(raw)
+
+
+def read_note_id(vault: Vault, card_path: str) -> int | None:
+    """Reads the `noteId` frontmatter field of a card given its vault-relative
+    path (e.g. "04-Quiz-Bank/karpathy/x.md"). Shared by recall.py and
+    audit.py — both need to go from a CardRef.path to the Anki note id."""
+    fm, _ = read_frontmatter(vault, vault.path(*card_path.split("/")))
+    if fm is None:
+        return None
+    note_id = fm.get("noteId")
+    return int(note_id) if note_id is not None else None

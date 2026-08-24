@@ -1,3 +1,4 @@
+import json
 from unittest.mock import patch
 
 from quiron.cli import load_knowledge, main, save_knowledge
@@ -71,3 +72,70 @@ def test_today_survives_ankiconnect_unreachable(tmp_path, capsys):
     assert rc == 0
     out = capsys.readouterr().out
     assert "factor" not in out
+
+
+def test_audit_via_cli_json(tmp_path, capsys):
+    (tmp_path / "00-Meta").mkdir()
+    (tmp_path / "04-Quiz-Bank" / "karpathy").mkdir(parents=True)
+    v = Vault(root=tmp_path)
+    long_answer = " ".join(["palabra"] * 60)
+    v.write_text(
+        tmp_path / "04-Quiz-Bank" / "karpathy" / "x.md",
+        f"---\ntags:\n  - repo-karpathy\nnoteId: 111\n---\nPregunta\n\n---\n\n{long_answer}\n\nRef: `05-Projects/x.py`\n",
+    )
+    save_knowledge(v, Knowledge())
+
+    from quiron import ankiconnect
+
+    with patch(
+        "quiron.ankiconnect.invoke",
+        side_effect=ankiconnect.AnkiConnectError("no Anki"),
+    ):
+        rc = main(["cards", "--vault", str(tmp_path), "--audit", "--json"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    data = json.loads(out)
+    assert data["checked"] == 1
+    assert any("too_long" in c["reasons"] for c in data["candidates"])
+
+
+def test_record_review_via_cli_persists(tmp_path):
+    (tmp_path / "00-Meta").mkdir()
+    v = Vault(root=tmp_path)
+    save_knowledge(
+        v,
+        Knowledge(
+            concepts=[
+                Concept(
+                    slug="x",
+                    title="X",
+                    unit="phase-0",
+                    card_refs=[CardRef(path="04-Quiz-Bank/karpathy/x.md")],
+                )
+            ]
+        ),
+    )
+    proposals_path = tmp_path / "proposals.json"
+    proposals_path.write_text(
+        json.dumps(
+            [
+                {
+                    "card_path": "04-Quiz-Bank/karpathy/x.md",
+                    "quality": "ok",
+                    "reviewer_verdict": "fine",
+                    "lapses_at_review": 7,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    rc = main(["cards", "--vault", str(tmp_path), "--record-review", str(proposals_path)])
+    assert rc == 0
+
+    k = load_knowledge(v)
+    cr = k.concepts[0].card_refs[0]
+    assert cr.quality == "ok"
+    assert cr.reviewer_verdict == "fine"
+    assert cr.lapses_at_review == 7
+    assert cr.reviewed_at is not None

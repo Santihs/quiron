@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import ankiconnect, coverage, recall
+from . import ankiconnect, audit, coverage, recall
 from .capture import scan_and_merge
 from .doctor import run as doctor_run
 from .inbox import Proposal, apply_proposals
@@ -117,7 +117,7 @@ def cmd_cards(args: argparse.Namespace) -> int:
 
     if args.list_gaps:
         gaps = coverage.coverage_gap(knowledge)
-        print(f"{len(gaps)} conceptos needed sin tarjetas")
+        print(f"{len(gaps)} needed concepts with no cards")
         for c in gaps:
             print(f"  - {c.slug} ({c.notes_ref})")
         return 0
@@ -127,10 +127,65 @@ def cmd_cards(args: argparse.Namespace) -> int:
         save_knowledge(vault, knowledge)
         print(f"decided: {report.decided}")
         if report.quit_early:
-            print("stopped early — rest stays undecided, safe to resume later")
+            print("stopped early — the rest stays undecided, safe to resume later")
         return 0
 
-    print("nothing to do — pass --decide or --list-gaps")
+    if args.audit:
+        note_id_to_slug = recall.collect_note_ids(vault, knowledge)
+        notes_info = {}
+        if note_id_to_slug:
+            try:
+                notes_info = ankiconnect.cards_info_by_note_id(list(note_id_to_slug))
+            except ankiconnect.AnkiConnectError:
+                notes_info = {}
+        report = audit.run(vault, knowledge, notes_info=notes_info)
+
+        result = {
+            "checked": report.checked,
+            "candidates": [
+                {
+                    "card_path": c.card_path,
+                    "concept_slug": c.concept_slug,
+                    "reasons": c.reasons,
+                    "lapses": c.lapses,
+                }
+                for c in report.candidates
+            ],
+            "informational": [
+                {
+                    "card_path": i.card_path,
+                    "concept_slug": i.concept_slug,
+                    "reason": i.reason,
+                    "lapses": i.lapses,
+                }
+                for i in report.informational
+            ],
+        }
+        if args.json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            print(f"checked: {report.checked}")
+            print(f"candidates: {len(report.candidates)}")
+            for c in report.candidates:
+                print(f"  - {c.card_path} [{', '.join(c.reasons)}]")
+            print(f"informational: {len(report.informational)}")
+            for i in report.informational:
+                print(f"  - {i.card_path} ({i.reason}, lapses={i.lapses})")
+        return 0
+
+    if args.record_review:
+        raw = json.loads(Path(args.record_review).read_text(encoding="utf-8"))
+        proposals = [audit.ReviewProposal(**p) for p in raw]
+        review_report = audit.record_review(knowledge, proposals)
+        save_knowledge(vault, knowledge)
+        print(f"recorded: {len(review_report.recorded)}")
+        if review_report.skipped_no_card_ref:
+            print(f"skipped (no matching card_ref): {len(review_report.skipped_no_card_ref)}")
+            for path in review_report.skipped_no_card_ref:
+                print(f"  - {path}")
+        return 0
+
+    print("nothing to do — pass --decide, --list-gaps, --audit, or --record-review")
     return 1
 
 
@@ -182,6 +237,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--vault", required=True)
     sp.add_argument("--decide", action="store_true", help="interactive retention-decision walker")
     sp.add_argument("--list-gaps", action="store_true", help="list needed-but-empty concepts")
+    sp.add_argument("--audit", action="store_true", help="read-only card-quality report (layers 1+2)")
+    sp.add_argument("--record-review", metavar="FILE", help="apply a JSON list of ReviewProposal after harvard-reviewer ran")
+    sp.add_argument("--json", action="store_true", help="with --audit, print JSON instead of a text summary")
     sp.set_defaults(func=cmd_cards)
 
     return p

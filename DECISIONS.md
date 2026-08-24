@@ -1,87 +1,103 @@
 # Decisions
 
-## `coverage_gap` es amarillo, siempre — nunca rojo (Fase 2)
+## `self-explain: true` cards get a wider length budget and skip the enumeration check (Fase 3)
 
-`Quiron.md` v7 se contradice a si mismo: el build order dice "coverage
-reports only needed-and-empty as red", pero la tabla de tiers de `today`
-("a concept with no cards is never red") y el ejemplo trabajado (sección 4
-"MCP" se muestra 🟡) dicen lo contrario. Gana la regla dura, no la frase del
-build order — es la que se repite y se justifica explícitamente (fatiga de
-alarma). Un concepto `needed` sin tarjetas es una decisión tuya sin ejecutar
-todavía, no un error del sistema. Rojo queda reservado para: `Ref:` colgante,
-duda `neglected` (>30d), y — desde Fase 3 — tarjetas sospechosas.
+First run of `audit.py`'s `too_long` check (`MAX_WORDS=50`) against the real
+deck flagged 18 cards; 13 of those were `self-explain: true` derivation
+cards. `harvard-reviewer`'s own spec explicitly treats those differently:
+"one tightly-coupled derivation where the steps only make sense together"
+is right-sized, and the ~15-20s-aloud heuristic is stated for simple recall
+cards, not dense derivations. `layer1_flags` now reads the `self-explain`
+frontmatter flag and applies `MAX_WORDS_SELF_EXPLAIN=120` instead of `50`,
+and skips the `enumeration` check entirely for those cards (numbered
+derivation steps are the point, not a minimum-information violation). Real
+candidate count on the karpathy deck dropped from 38 to 26 after the fix —
+14 of those are the pre-existing dangling `Ref:` findings from Fase 1, so
+the actual new layer-1/2 signal is closer to a dozen cards, not a quarter
+of the deck.
 
-## AnkiConnect se conecta en Fase 2 solo para "entiendo vs recuerdo"
+## `coverage_gap` is yellow, always — never red (Fase 2)
 
-De las 5 preguntas de v7, la #2 (`factor` alto en Anki pero
-`understanding: encountered`) es la única que necesita Anki conectado y no
-está explícitamente asignada a otra fase (`next`/`sources` son Fase 4 por
-texto explícito de v7; el signal de lapses es Fase 3 por texto explícito).
-`recall.py` la implementa con un umbral conservador (`factor>=2500,
-interval>=21`) y degrada a "sin esa línea" si Anki está cerrado —
-`quiron today` nunca falla por eso.
+`Quiron.md` v7 contradicts itself: the build order says "coverage reports
+only needed-and-empty as red", but `today`'s tier table ("a concept with no
+cards is never red") and the worked example (section 4 "MCP" renders 🟡) say
+otherwise. The hard rule wins, not the build-order line — it's the one
+repeated and explicitly justified (alarm fatigue). A `needed` concept with
+no cards yet is a decision of yours not executed, not a system error. Red
+stays reserved for: dangling `Ref:`, a `neglected` doubt (>30d), and — from
+Fase 3 — suspect cards.
 
-## Concepto = heading de 02-Topics (no archivo, no tag)
+## AnkiConnect connects in Fase 2 only for "understand vs recall"
 
-Los 136 `Ref:` de tarjetas que apuntan a topics apuntan a headings, no a archivos
-completos. Un archivo (~12 en karpathy) es demasiado grueso para cobertura útil;
-un tag de tarjeta (~40) queda ciego al material que nunca se convirtió en
-tarjeta — justo el hueco que `quiron` existe para ver. Heading (~230 en
-karpathy real) es la granularidad a la que el vault ya apunta mecánicamente.
+Of v7's 5 questions, #2 (high `factor` in Anki but
+`understanding: encountered`) is the only one that needs Anki connected and
+isn't explicitly assigned to another phase (`next`/`sources` are Fase 4 by
+v7's own text; the lapses signal is Fase 3 by v7's own text). `recall.py`
+implements it with a conservative threshold (`factor>=2500,
+interval>=21`) and degrades to "no line at all" if Anki is closed —
+`quiron today` never fails because of it.
 
-## Repo separado (`C:\SANTIAGO\quiron`), no dentro de karpathy-path
+## Concept = 02-Topics heading (not file, not tag)
 
-`anki-metrics/` y `notifier/` viven dentro de karpathy-path porque son
-de un solo vault. `quiron` no lo es — Fase 5 (devtalles) exige que el mismo
-código corra contra dos vaults con `--vault` como argumento, sin que uno
-importe del repo del otro.
+The 136 card `Ref:` lines that point at topics point at headings, not whole
+files. A file (~12 in karpathy) is too coarse for useful coverage; a card
+tag (~40) stays blind to material that never became a card — exactly the
+gap `quiron` exists to see. Heading (~230 in the real karpathy vault) is the
+granularity the vault already points at mechanically.
 
-## `ankiconnect.py` y `quizbank.py` no se reescriben
+## Separate repo (`C:\SANTIAGO\quiron`), not inside karpathy-path
 
-Ya existían, funcionando, en `karpathy-path/anki-metrics/`. `ankiconnect.py`
-se copió verbatim a `quiron/src/quiron/ankiconnect.py` (Fase 1 no lo llama
-todavía, pero copiarlo con su test evita que Fase 2 arranque con una decisión
-pendiente). `anki-metrics/` se queda intacto y funcionando — `/quiz-metrics`
-y su CI no se tocan. Retirarlo es decisión de Fase 3, cuando `audit.py` lo
-supere.
+`anki-metrics/` and `notifier/` live inside karpathy-path because they
+belong to one vault. `quiron` doesn't — Fase 5 (devtalles) requires the same
+code to run against two vaults via `--vault`, without one importing from the
+other's repo.
 
-## El clasificador del inbox es un skill de Claude Code, no una llamada a la API
+## `ankiconnect.py` and `quizbank.py` are not rewritten
 
-Python (`capture.py`, `inbox.py`) queda 100% determinístico: escanea, valida,
-escribe. La clasificación semántica ("¿de qué concepto es esta duda?") vive en
-`/quiron-inbox`, un skill que sigue el patrón ya establecido por
-`harvard-review` y `session-close` en este mismo vault. Sin API key nueva, sin
-versionado de modelo en el camino crítico de Fase 1 (ese riesgo ya está
-documentado en Quiron.md v7 y sigue abierto para cuando el clasificador
-importe más).
+They already existed, working, in `karpathy-path/anki-metrics/`.
+`ankiconnect.py` was copied verbatim to `quiron/src/quiron/ankiconnect.py`
+(Fase 1 doesn't call it yet, but copying it with its test avoided Fase 2
+starting with an open decision). `anki-metrics/` stays intact and working —
+`/quiz-metrics` and its CI are untouched. Retiring it is a Fase 3 decision,
+once `audit.py` supersedes it.
 
-## `Ref:` se resuelve exacto → prefijo → sin resolver, nunca se fuerza
+## The inbox classifier is a Claude Code skill, not an API call
 
-136 refs de tarjeta a topics: 22 exactos, 101 solo prefijo (el heading real
-tiene un paréntesis o sufijo extra), 13 sin match posible. Una tarjeta con
-`Ref:` irresoluble no se asigna a ningún concepto — queda reportada por
-`quiron doctor` como hallazgo real, no forzada a un match aproximado que
-mentiría sobre qué sabe el sistema.
+Python (`capture.py`, `inbox.py`) stays fully deterministic: it scans,
+validates, writes. Semantic classification ("which concept is this doubt
+about?") lives in `/quiron-inbox`, a skill following the pattern already
+established by `harvard-review` and `session-close` in this same vault. No
+new API key, no model-versioning risk on Fase 1's critical path (that risk
+is already documented in `Quiron.md` v7 and stays open for when the
+classifier matters more).
 
-## Rename de heading = concepto huérfano, no rename automático
+## `Ref:` resolves exact → prefix → unresolved, never forced
 
-Renombrar un `## heading` en una nota de tema genera un slug nuevo y dejar
-huérfano al viejo (con su evidencia intacta). No se construyó detección de
-renames en Fase 1: `doctor` reporta el huérfano, y remapear es editar una
-línea de `knowledge.json`. Limitación honesta y visible, preferible a
-heurísticas de similitud que fallarían en silencio.
+136 card refs into topics: 22 exact, 101 prefix-only (the real heading has
+an extra parenthetical or suffix), 13 with no possible match. A card with an
+unresolvable `Ref:` is never assigned to any concept — it's reported by
+`quiron doctor` as a real finding, not forced into an approximate match that
+would lie about what the system knows.
 
-## Diferido — de Quiron.md v7, no de esta fase
+## Heading rename = orphaned concept, not automatic rename
 
-Recordado acá para que no se pierda entre fases:
+Renaming a `## heading` in a topic note generates a new slug and orphans the
+old one (with its evidence intact). No rename detection was built in
+Fase 1: `doctor` reports the orphan, and remapping is editing one line of
+`knowledge.json`. An honest, visible limitation — preferable to a
+similarity heuristic that would fail silently.
 
-- **Sub-conceptos direccionables.** `Evidence.scope` es texto libre hoy.
-  Hacerlo un nodo de primera clase es upgrade real de modelado — después de
-  que el loop diario sea hábito, no antes.
-- **Currículum desde prerequisites.** Clausura transitiva sobre
-  `prerequisites[]`. Necesita dos vaults poblados primero (Fase 5).
-- **Conceptos compartidos entre vaults.** Slugs estables permitiendo
-  transferir evidencia. Justifica el template de Fase 7 mejor que "para que
-  lo instale un tercero".
+## Deferred — from Quiron.md v7, not from this phase
 
-Las tres son consecuencia de los datos, no features a construir ahora.
+Recorded here so they aren't lost between phases:
+
+- **Addressable sub-concepts.** `Evidence.scope` is free text today. Making
+  it a first-class node is a real modeling upgrade — after the daily loop is
+  a habit, not before.
+- **Curriculum from prerequisites.** Transitive closure over
+  `prerequisites[]`. Needs two populated vaults first (Fase 5).
+- **Concepts shared across vaults.** Stable slugs letting evidence transfer.
+  Justifies the Fase 7 template far better than "so a third party can
+  install it."
+
+All three are a consequence of the data, not features to build now.

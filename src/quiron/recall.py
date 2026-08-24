@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .schema import Concept, Knowledge
-from .vault import Vault, read_frontmatter
+from .vault import Vault, read_note_id
 
 FACTOR_THRESHOLD = 2500
 INTERVAL_THRESHOLD = 21  # days
@@ -30,20 +30,12 @@ class Contradiction:
     interval: int
 
 
-def _note_id_for_card(vault: Vault, card_path: str) -> int | None:
-    fm, _ = read_frontmatter(vault, vault.path(*card_path.split("/")))
-    if fm is None:
-        return None
-    note_id = fm.get("noteId")
-    return int(note_id) if note_id is not None else None
-
-
 def collect_note_ids(vault: Vault, knowledge: Knowledge) -> dict[int, str]:
     """Maps noteId -> owning concept slug, for every card_ref in the model."""
     out: dict[int, str] = {}
     for c in knowledge.concepts:
         for cr in c.card_refs:
-            note_id = _note_id_for_card(vault, cr.path)
+            note_id = read_note_id(vault, cr.path)
             if note_id is not None:
                 out[note_id] = c.slug
     return out
