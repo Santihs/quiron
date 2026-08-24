@@ -1,5 +1,26 @@
 # Decisions
 
+## `coverage_gap` es amarillo, siempre — nunca rojo (Fase 2)
+
+`Quiron.md` v7 se contradice a si mismo: el build order dice "coverage
+reports only needed-and-empty as red", pero la tabla de tiers de `today`
+("a concept with no cards is never red") y el ejemplo trabajado (sección 4
+"MCP" se muestra 🟡) dicen lo contrario. Gana la regla dura, no la frase del
+build order — es la que se repite y se justifica explícitamente (fatiga de
+alarma). Un concepto `needed` sin tarjetas es una decisión tuya sin ejecutar
+todavía, no un error del sistema. Rojo queda reservado para: `Ref:` colgante,
+duda `neglected` (>30d), y — desde Fase 3 — tarjetas sospechosas.
+
+## AnkiConnect se conecta en Fase 2 solo para "entiendo vs recuerdo"
+
+De las 5 preguntas de v7, la #2 (`factor` alto en Anki pero
+`understanding: encountered`) es la única que necesita Anki conectado y no
+está explícitamente asignada a otra fase (`next`/`sources` son Fase 4 por
+texto explícito de v7; el signal de lapses es Fase 3 por texto explícito).
+`recall.py` la implementa con un umbral conservador (`factor>=2500,
+interval>=21`) y degrada a "sin esa línea" si Anki está cerrado —
+`quiron today` nunca falla por eso.
+
 ## Concepto = heading de 02-Topics (no archivo, no tag)
 
 Los 136 `Ref:` de tarjetas que apuntan a topics apuntan a headings, no a archivos

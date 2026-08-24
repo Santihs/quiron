@@ -7,6 +7,7 @@ import json
 import sys
 from pathlib import Path
 
+from . import ankiconnect, coverage, recall
 from .capture import scan_and_merge
 from .doctor import run as doctor_run
 from .inbox import Proposal, apply_proposals
@@ -88,11 +89,49 @@ def cmd_today(args: argparse.Namespace) -> int:
     vault = Vault(root=Path(args.vault).resolve())
     knowledge = load_knowledge(vault) or Knowledge()
     doctor = doctor_run(vault, existing=knowledge)
-    lines = build_report(vault, knowledge, unresolved_refs=[
-        (d["card"], d["ref"]) for d in doctor.dangling_refs
-    ])
+
+    contradictions = []
+    note_id_to_slug = recall.collect_note_ids(vault, knowledge)
+    if note_id_to_slug:
+        try:
+            notes_info = ankiconnect.cards_info_by_note_id(list(note_id_to_slug))
+        except ankiconnect.AnkiConnectError:
+            notes_info = {}
+        # cards_info_by_note_id keys by note id already; recall expects the
+        # same shape (noteId -> cardsInfo dict).
+        contradictions = recall.cross_check(knowledge, note_id_to_slug, notes_info)
+
+    lines = build_report(
+        vault,
+        knowledge,
+        unresolved_refs=[(d["card"], d["ref"]) for d in doctor.dangling_refs],
+        contradictions=contradictions,
+    )
     print(render(lines))
     return 0
+
+
+def cmd_cards(args: argparse.Namespace) -> int:
+    vault = Vault(root=Path(args.vault).resolve())
+    knowledge = load_knowledge(vault) or Knowledge()
+
+    if args.list_gaps:
+        gaps = coverage.coverage_gap(knowledge)
+        print(f"{len(gaps)} conceptos needed sin tarjetas")
+        for c in gaps:
+            print(f"  - {c.slug} ({c.notes_ref})")
+        return 0
+
+    if args.decide:
+        report = coverage.decide(knowledge)
+        save_knowledge(vault, knowledge)
+        print(f"decided: {report.decided}")
+        if report.quit_early:
+            print("stopped early — rest stays undecided, safe to resume later")
+        return 0
+
+    print("nothing to do — pass --decide or --list-gaps")
+    return 1
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
@@ -138,6 +177,12 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--vault", required=True)
     sp.add_argument("--apply", required=True, help="path to a JSON list of classified proposals")
     sp.set_defaults(func=cmd_inbox)
+
+    sp = sub.add_parser("cards")
+    sp.add_argument("--vault", required=True)
+    sp.add_argument("--decide", action="store_true", help="interactive retention-decision walker")
+    sp.add_argument("--list-gaps", action="store_true", help="list needed-but-empty concepts")
+    sp.set_defaults(func=cmd_cards)
 
     return p
 

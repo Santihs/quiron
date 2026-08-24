@@ -9,7 +9,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 
+from . import coverage
 from .capture import load_inbox
+from .recall import Contradiction
 from .schema import Knowledge
 
 STALE_DAYS = 14
@@ -44,6 +46,7 @@ def build_report(
     knowledge: Knowledge,
     unresolved_refs: list[tuple[str, str]] | None = None,
     today: date | None = None,
+    contradictions: list[Contradiction] | None = None,
 ) -> list[Line]:
     today = today or date.today()
     lines: list[Line] = []
@@ -94,13 +97,34 @@ def build_report(
             )
         )
 
-    undecided = [c for c in knowledge.concepts if c.card_policy == "undecided"]
-    if undecided:
+    gaps = coverage.coverage_gap(knowledge)
+    if gaps:
         lines.append(
             Line(
                 tier="yellow",
-                text=f"{len(undecided)} conceptos sin decision de retencion",
+                text=f"{len(gaps)} conceptos \"needed\" sin tarjetas",
+                action="quiron cards --list-gaps",
+            )
+        )
+
+    pending = coverage.undecided(knowledge)
+    if pending:
+        lines.append(
+            Line(
+                tier="yellow",
+                text=f"{len(pending)} conceptos sin decision de retencion",
                 action="quiron cards --decide",
+            )
+        )
+
+    for c in contradictions or []:
+        lines.append(
+            Line(
+                tier="yellow",
+                text=(
+                    f'{c.concept.title} — factor {c.factor} en Anki, '
+                    f'understanding: encountered (nunca lo explicaste)'
+                ),
             )
         )
 
