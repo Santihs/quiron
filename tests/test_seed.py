@@ -1,5 +1,6 @@
 from quiron.schema import CardRef, Concept, Evidence, Knowledge
 from quiron.seed import seed
+from quiron.vault import Vault
 
 
 def test_seed_creates_concepts_from_headings(vault):
@@ -92,6 +93,74 @@ def test_seed_preserves_card_quality_by_path_on_refresh(vault):
     target = next(cr for cr in c2.card_refs if cr.path == "04-Quiz-Bank/karpathy/orthogonality-exact.md")
     assert target.quality == "ok"
     assert str(target.reviewed_at) == "2026-08-20"
+
+
+def test_seed_topic_note_without_frontmatter_still_seeds(tmp_path):
+    v = Vault(root=tmp_path)
+    d = tmp_path / "02-Topics"
+    d.mkdir()
+    v.write_text(d / "Skills.md", "# Skills\n\nReusable behaviors.\n\n## Notas\n\nsome text\n")
+
+    result, _ = seed(v)
+    assert [c.slug for c in result.concepts] == ["skills--skills"]
+    assert result.concepts[0].title == "Skills"
+
+
+def test_seed_file_level_concept_when_only_denylisted_headings(tmp_path):
+    v = Vault(root=tmp_path)
+    d = tmp_path / "02-Topics"
+    d.mkdir()
+    v.write_text(
+        d / "Hooks.md",
+        "# Hooks\n\nShell commands run on events.\n\n## Visto en\n\n- a\n\n## Notas\n\nmore\n",
+    )
+
+    result, report = seed(v)
+    assert len(result.concepts) == 1
+    assert result.concepts[0].title == "Hooks"
+    assert any("Visto en" in h for h in report.headings_skipped)
+    assert any("Notas" in h for h in report.headings_skipped)
+
+
+def test_seed_file_level_concept_falls_back_to_stem_without_h1(tmp_path):
+    v = Vault(root=tmp_path)
+    d = tmp_path / "02-Topics"
+    d.mkdir()
+    v.write_text(d / "Worktrees.md", "## Visto en\n\n- a\n")
+
+    result, _ = seed(v)
+    assert result.concepts[0].title == "Worktrees"
+
+
+def test_seed_normal_heading_note_unaffected_by_fallback(tmp_path):
+    v = Vault(root=tmp_path)
+    d = tmp_path / "02-Topics"
+    d.mkdir()
+    v.write_text(d / "Multi.md", "# Multi\n\n## Concept A\n\ntext\n\n## Concept B\n\ntext\n")
+
+    result, _ = seed(v)
+    assert {c.title for c in result.concepts} == {"Concept A", "Concept B"}
+
+
+def test_seed_deck_param_reads_different_folder(tmp_path):
+    v = Vault(root=tmp_path)
+    topics = tmp_path / "02-Topics"
+    topics.mkdir()
+    v.write_text(topics / "X.md", "# X\n\n## Foo\n\ntext\n")
+
+    devtalles_deck = tmp_path / "04-Quiz-Bank" / "devtalles"
+    devtalles_deck.mkdir(parents=True)
+    v.write_text(
+        devtalles_deck / "a.md",
+        "---\ntags:\n  - repo-devtalles\nnoteId: 1\n---\nQ\n\n---\n\nA\n\nRef: `02-Topics/X.md — Foo`\n",
+    )
+
+    result_default, _ = seed(v)
+    assert result_default.concepts[0].card_refs == []
+
+    result_devtalles, report = seed(v, deck="devtalles")
+    assert report.cards_resolved == 1
+    assert result_devtalles.concepts[0].card_refs[0].path == "04-Quiz-Bank/devtalles/a.md"
 
 
 def test_seed_reports_orphaned_concept_not_deleted(vault):

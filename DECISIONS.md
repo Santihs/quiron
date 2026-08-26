@@ -1,5 +1,41 @@
 # Decisions
 
+## Fase 5 generalization: frontmatter optional, file-level concept fallback, cards stay karpathy-only
+
+Pointing quiron at a second real vault (`claude-devtalles`) surfaced three
+concrete mismatches with what Fase 1-4 assumed, none of which needed a
+schema change:
+
+- **No topic-note frontmatter.** All 11 `02-Topics/*.md` files in
+  claude-devtalles start directly with `# Title`, no YAML block. `seed.py`
+  used to skip any topic note with `fm is None` — meaning it silently
+  produced zero concepts there, not noisy ones. Fixed by treating a missing
+  frontmatter block as `{}` rather than skipping the file; `unit` already
+  fell back to `"unknown"` when tags are absent, so nothing else changed.
+
+- **Concept granularity is the file, not a heading inside it.** Karpathy's
+  topic notes hold several `##` concept headings each; devtalles' hold one
+  concept per file (the H1 *is* the concept), using `##` only for
+  organization ("Visto en", "Notas" — added to `headings.DENYLIST`). `seed()`
+  now falls back to a single file-level concept (titled from the `# H1`
+  line, or the file stem if there isn't one) whenever a topic note has zero
+  surviving concept headings after the denylist. This never triggers for
+  karpathy, whose notes always have real concept headings.
+
+- **The live Anki deck doesn't generalize, on purpose, this phase.**
+  Confirmed via AnkiConnect: a real `devtalles` deck exists (45 notes,
+  yanki-synced) but sourced from multi-`## Q:`/`**A:**`-pair files
+  (`04-Quiz-Bank/*.md`), not karpathy's one-file-per-card format — no
+  `noteId` stored anywhere in the vault, no current `Ref:` line in source.
+  Making cards addressable there means rethinking what `CardRef.path`
+  identifies (a file today; would need to become a file+block reference),
+  which is a real schema question, not a one-file fix. Deliberately out of
+  scope: `04-Quiz-Bank/karpathy` became a `deck` parameter (default
+  `"karpathy"`, threaded through `seed`/`doctor`/`audit`/the CLI) so the
+  name itself isn't hardcoded, but devtalles simply has no matching deck
+  folder to point it at yet — `--audit`/`--cards`/recall report empty there,
+  honestly, rather than crash or fake a result.
+
 ## `quiron next`'s `coverage_gap` detail is empty, not a lesson count (Fase 4)
 
 `Quiron.md`'s worked example for `quiron next` shows `sección 4 / MCP ✗ 28

@@ -62,11 +62,11 @@ def _strip_ref_line(answer: str) -> str:
     return REF_LINE_RE.sub("", answer).strip()
 
 
-def _load_cards(vault: Vault) -> dict[str, tuple[str, bool]]:
+def _load_cards(vault: Vault, deck: str) -> dict[str, tuple[str, bool]]:
     """card_path -> (body post-frontmatter, self_explain flag), for every
-    card in 04-Quiz-Bank/karpathy."""
+    card in 04-Quiz-Bank/<deck>."""
     out: dict[str, tuple[str, bool]] = {}
-    for p in vault.walk_markdown("04-Quiz-Bank/karpathy"):
+    for p in vault.walk_markdown(f"04-Quiz-Bank/{deck}"):
         fm, body = read_frontmatter(vault, p)
         self_explain = bool(fm.get("self-explain")) if fm else False
         out[vault.relative(p)] = (body, self_explain)
@@ -128,18 +128,23 @@ def lapses_signal(concept: Concept, lapses: int) -> str | None:
     return "probably_dont_know_it"
 
 
-def run(vault: Vault, knowledge: Knowledge, notes_info: dict[int, dict] | None = None) -> AuditReport:
+def run(
+    vault: Vault,
+    knowledge: Knowledge,
+    notes_info: dict[int, dict] | None = None,
+    deck: str = "karpathy",
+) -> AuditReport:
     """notes_info: noteId -> AnkiConnect cardsInfo dict, or None/{} if Anki
     is unreachable — layer 2 is then simply skipped, layer 1 still runs.
     """
-    cards = _load_cards(vault)
+    cards = _load_cards(vault, deck)
     card_to_slug = card_to_concept(knowledge)
     by_slug = {c.slug: c for c in knowledge.concepts}
 
     flags = layer1_flags(cards)
 
     # dangling Ref: — reuse seed's own resolution, no new logic
-    _, seed_report = seed(vault, existing=knowledge)
+    _, seed_report = seed(vault, existing=knowledge, deck=deck)
     dangling_paths = {path for path, _ in seed_report.cards_unresolved}
     for path in dangling_paths:
         flags.setdefault(path, []).append("dangling_ref")

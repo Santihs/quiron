@@ -25,6 +25,8 @@ DENYLIST = {
     "core concepts to capture",
     "the key insight",
     "why it matters for ai",
+    "visto en",
+    "notas",
 }
 
 

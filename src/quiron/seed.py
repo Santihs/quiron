@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .headings import (
+    Heading,
     concept_headings,
     extract_headings,
     extract_ref,
@@ -58,9 +59,23 @@ def _index_topic_notes(vault: Vault, report: SeedReport):
     index = {}
     for p in vault.walk_markdown("02-Topics"):
         fm, body = read_frontmatter(vault, p)
-        if fm is None:
-            continue
+        had_frontmatter = fm is not None
+        fm = fm or {}
         headings = concept_headings(body)
+        if not headings and not had_frontmatter:
+            # A topic note with NO frontmatter at all (devtalles' shape) and
+            # no surviving concept heading is itself the concept — the
+            # granularity that vault's one-concept-per-file notes actually
+            # use. Gated on missing frontmatter specifically so this never
+            # fires for a karpathy stub note (real frontmatter, `## Core
+            # concepts to capture` etc. not yet filled in) — that's an
+            # unwritten concept, not a file-level one, and seeding it would
+            # be noise, not signal.
+            title = next(
+                (l[2:].strip() for l in body.splitlines() if l.startswith("# ")),
+                p.stem,
+            )
+            headings = [Heading(level=1, text=title, line_no=1)]
         index[vault.relative(p)] = {
             "fm": fm,
             "headings": headings,
@@ -74,10 +89,10 @@ def _index_topic_notes(vault: Vault, report: SeedReport):
     return index
 
 
-def _index_cards(vault: Vault) -> list[tuple[str, str]]:
+def _index_cards(vault: Vault, deck: str) -> list[tuple[str, str]]:
     """Returns list of (card_relative_path, ref_content) for cards with a Ref: line."""
     out = []
-    for p in vault.walk_markdown("04-Quiz-Bank/karpathy"):
+    for p in vault.walk_markdown(f"04-Quiz-Bank/{deck}"):
         _, body = read_frontmatter(vault, p)
         ref = extract_ref(body)
         if ref:
@@ -107,7 +122,9 @@ def _index_doubts(vault: Vault) -> list[dict]:
     return out
 
 
-def seed(vault: Vault, existing: Knowledge | None = None) -> tuple[Knowledge, SeedReport]:
+def seed(
+    vault: Vault, existing: Knowledge | None = None, deck: str = "karpathy"
+) -> tuple[Knowledge, SeedReport]:
     report = SeedReport()
     by_slug: dict[str, Concept] = {}
     if existing is not None:
@@ -162,7 +179,7 @@ def seed(vault: Vault, existing: Knowledge | None = None) -> tuple[Knowledge, Se
     new_card_refs: dict[str, list[CardRef]] = {slug: [] for slug in by_slug}
     card_to_resolved_slug: dict[str, str] = {}
 
-    for card_path, ref_content in _index_cards(vault):
+    for card_path, ref_content in _index_cards(vault, deck):
         path, anchor = parse_ref(ref_content)
         if not anchor:
             # References 06-Doubts-Resolved or a .py file directly — not a

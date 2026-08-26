@@ -26,8 +26,8 @@ class DoctorReport:
         return asdict(self)
 
 
-def run(vault: Vault, existing: Knowledge | None = None) -> DoctorReport:
-    result, seed_report = seed(vault, existing=existing)
+def run(vault: Vault, existing: Knowledge | None = None, deck: str = "karpathy") -> DoctorReport:
+    result, seed_report = seed(vault, existing=existing, deck=deck)
     return DoctorReport(
         dangling_refs=[
             {"card": path, "ref": ref} for path, ref in seed_report.cards_unresolved

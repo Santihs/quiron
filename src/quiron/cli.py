@@ -37,7 +37,7 @@ def save_knowledge(vault: Vault, knowledge: Knowledge) -> None:
 def cmd_seed(args: argparse.Namespace) -> int:
     vault = Vault(root=Path(args.vault).resolve())
     existing = load_knowledge(vault)
-    result, report = seed_run(vault, existing=existing)
+    result, report = seed_run(vault, existing=existing, deck=args.deck)
     save_knowledge(vault, result)
 
     print(f"concepts: {report.concepts_created} created, {report.concepts_refreshed} refreshed")
@@ -89,7 +89,7 @@ def cmd_inbox(args: argparse.Namespace) -> int:
 def cmd_today(args: argparse.Namespace) -> int:
     vault = Vault(root=Path(args.vault).resolve())
     knowledge = load_knowledge(vault) or Knowledge()
-    doctor = doctor_run(vault, existing=knowledge)
+    doctor = doctor_run(vault, existing=knowledge, deck=args.deck)
 
     contradictions = []
     note_id_to_slug = recall.collect_note_ids(vault, knowledge)
@@ -139,7 +139,7 @@ def cmd_cards(args: argparse.Namespace) -> int:
                 notes_info = ankiconnect.cards_info_by_note_id(list(note_id_to_slug))
             except ankiconnect.AnkiConnectError:
                 notes_info = {}
-        report = audit.run(vault, knowledge, notes_info=notes_info)
+        report = audit.run(vault, knowledge, notes_info=notes_info, deck=args.deck)
 
         result = {
             "checked": report.checked,
@@ -193,7 +193,7 @@ def cmd_cards(args: argparse.Namespace) -> int:
 def cmd_doctor(args: argparse.Namespace) -> int:
     vault = Vault(root=Path(args.vault).resolve())
     knowledge = load_knowledge(vault)
-    report = doctor_run(vault, existing=knowledge)
+    report = doctor_run(vault, existing=knowledge, deck=args.deck)
     if args.json:
         print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
     else:
@@ -301,17 +301,22 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="quiron")
     sub = p.add_subparsers(dest="command", required=True)
 
+    sp = sub.add_parser("capture-scan")
+    sp.add_argument("--vault", required=True, help="path to the Obsidian vault root")
+    sp.set_defaults(func=cmd_capture_scan)
+
     for name, fn in (
         ("today", cmd_today),
         ("seed", cmd_seed),
-        ("capture-scan", cmd_capture_scan),
     ):
         sp = sub.add_parser(name)
         sp.add_argument("--vault", required=True, help="path to the Obsidian vault root")
+        sp.add_argument("--deck", default="karpathy", help="live quiz-bank deck folder under 04-Quiz-Bank/")
         sp.set_defaults(func=fn)
 
     sp = sub.add_parser("doctor")
     sp.add_argument("--vault", required=True)
+    sp.add_argument("--deck", default="karpathy", help="live quiz-bank deck folder under 04-Quiz-Bank/")
     sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_doctor)
 
@@ -322,6 +327,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp = sub.add_parser("cards")
     sp.add_argument("--vault", required=True)
+    sp.add_argument("--deck", default="karpathy", help="live quiz-bank deck folder under 04-Quiz-Bank/ (used by --audit)")
     sp.add_argument("--decide", action="store_true", help="interactive retention-decision walker")
     sp.add_argument("--list-gaps", action="store_true", help="list needed-but-empty concepts")
     sp.add_argument("--audit", action="store_true", help="read-only card-quality report (layers 1+2)")
