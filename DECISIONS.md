@@ -1,5 +1,63 @@
 # Decisions
 
+## Fase 6: `quiron/templates/` as canon, reviewer parametrized, quiz-me partially templated
+
+Full inventory of both vaults' `.claude/{agents,skills,commands}/` before deciding what's
+shareable (per an explicit ask to "review what is useful too," not just template everything):
+
+- **`quiron-inbox`** was already byte-identical between vaults (confirmed by diff) — already
+  de facto shared, just with no common source. Moved into `quiron/templates/skills/`
+  unchanged; both vault copies still diff clean against it.
+- **`harvard-reviewer`/`harvard-review`** generalized cleanly: of 37 lines, exactly four were
+  karpathy-specific (the ML/AI framing, the hardcoded deck path, one domain-flavored phrase),
+  everything else — the accuracy pass, minimum-information sizing, self-explain handling, the
+  typed verdict, the report format — was already generic. Renamed `quiz-reviewer`/`quiz-review`,
+  the four spots became a `## Parameters for this vault` block with `{{ mustache }}`
+  placeholders in the canonical template (`quiron/templates/agents/quiz-reviewer.md`,
+  `quiron/templates/skills/quiz-review/SKILL.md`) — deliberately copier/Jinja-compatible syntax
+  so Fase 7 can consume these files directly. karpathy-path's filled-in copy diffs clean
+  against the template outside the parameters block.
+- **devtalles' `quiz-reviewer.md` diverges beyond the parameters block**, and that divergence is
+  real, not an error: this vault's cards have no `Ref:` line and no `self-explain` convention
+  (confirmed in Fase 5's exploration), so the template's format-checking paragraph — written
+  for karpathy's `Ref:`-per-card, `self-explain`-flagged format — would send the reviewer
+  hunting for something that doesn't exist. Its copy instead says to cross-check against the
+  relevant topic/section note by topic match, and drops the `self-explain` sizing exception.
+  This is the same category of finding as Fase 5's card-model gap: the *shape* of the review
+  (accuracy pass, sizing pass, typed verdict) generalizes; a couple of format-dependent
+  sentences inside it don't, yet, and forcing false uniformity there would be worse than naming
+  the real difference.
+- **`quiron-cards-audit`** moved into `templates/skills/` as a canonical, parameter-free copy
+  (its `harvard-reviewer`/`harvard-review` references became `quiz-reviewer`/`quiz-review`).
+  Still only lives in karpathy-path — not copied to devtalles, same root cause as Fase 5 (cards
+  there aren't individually addressable, so the audit round trip has nothing to dispatch on).
+- **`/quiz-me`** got a *partial* template (`quiron/templates/commands/quiz-me.md`): the parts
+  already byte-identical in both vaults today — the `srs:` no-line-means-due-today rule,
+  generation-first flow, the strict grading rubric, and the SM-2 scheduling formula (this one
+  was already word-for-word identical before this phase). Both vaults' real `quiz-me.md` files
+  got a one-line marker comment pointing at this template for that section; nothing else about
+  either file changed — this template is a floor, not a merge. The parts that differ
+  (card file format, karpathy's live-deck + `self-explain` + `quiron evidence` branch,
+  topic-interleaving selection, devtalles' empty-bank draft-from-notes fallback and
+  save-new-question step) stay as genuine per-vault extensions.
+- **`session-close`/`wrap-up` and `note-collect`/`cc-note-verify` were explicitly NOT
+  templated** this phase. Both pairs look like duplicates but diverged for real reasons:
+  `session-close` (karpathy) has WAIT gates, streak/hour tracking, and an unconditional push
+  after confirmation; `wrap-up` (devtalles) is simpler, has no WAIT gate, and pushes only on
+  full-section completion — reconciling these is a content decision about how much rigor
+  devtalles' session-closing should have, not a mechanical extraction. `note-collect` does web
+  research + generates LaTeX/HTML visuals (linear algebra needs this, devtalles doesn't);
+  `cc-note-verify` does two-source fact-checking (subagent + direct `WebFetch` against official
+  docs) because this course's own narration has been wrong before (a real, documented incident,
+  commit `6f32cdb`) — a failure mode karpathy's material doesn't have. Forcing these into one
+  template would either strip devtalles' extra rigor or bolt visual-generation onto a vault that
+  doesn't need it. Left alone on purpose; revisit only if a real duplicated-effort pain shows up,
+  not preemptively.
+- **`quiron/templates/`** is now the canonical source for shared vault-side prompt assets, the
+  same role `src/quiron/` plays for the Python. Sync is manual this phase (edit the template,
+  copy into each vault, fill in that vault's parameters) — Fase 7's copier is expected to
+  automate exactly this, which is why the placeholder syntax was chosen to match it now.
+
 ## Fase 5 generalization: frontmatter optional, file-level concept fallback, cards stay karpathy-only
 
 Pointing quiron at a second real vault (`claude-devtalles`) surfaced three
