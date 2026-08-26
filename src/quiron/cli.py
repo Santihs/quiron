@@ -1,4 +1,4 @@
-"""quiron CLI — today / seed / capture-scan / inbox / doctor."""
+"""quiron CLI — today / seed / capture-scan / inbox / doctor / cards / evidence / next / sources."""
 
 from __future__ import annotations
 
@@ -7,9 +7,10 @@ import json
 import sys
 from pathlib import Path
 
-from . import ankiconnect, audit, coverage, recall
+from . import ankiconnect, audit, coverage, nextup, recall, sources
 from .capture import scan_and_merge
 from .doctor import run as doctor_run
+from .evidence import add_evidence
 from .inbox import Proposal, apply_proposals
 from .schema import Knowledge
 from .seed import seed as seed_run
@@ -210,6 +211,92 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_evidence(args: argparse.Namespace) -> int:
+    vault = Vault(root=Path(args.vault).resolve())
+    knowledge = load_knowledge(vault) or Knowledge()
+    result = add_evidence(
+        knowledge,
+        card_path=args.card,
+        kind=args.kind,
+        ref=args.ref,
+        scope=args.scope,
+    )
+    if result.slug is None:
+        print("card not mapped to any concept — nothing recorded")
+        return 0
+    save_knowledge(vault, knowledge)
+    print(f"{result.slug}: {args.kind} evidence added ({result.concept_title})")
+    return 0
+
+
+def cmd_next(args: argparse.Namespace) -> int:
+    vault = Vault(root=Path(args.vault).resolve())
+    knowledge = load_knowledge(vault) or Knowledge()
+    result = nextup.candidates(knowledge)
+
+    if args.json:
+        print(
+            json.dumps(
+                [
+                    {"slug": c.slug, "title": c.title, "reason": c.reason, "detail": c.detail}
+                    for c in result
+                ],
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+
+    symbol = {
+        "open_doubt": "⚠",
+        "unblocked": "←",
+        "coverage_gap": "✗",
+        "no_explained": "•",
+    }
+    for i, c in enumerate(result, start=1):
+        row = f"{i}. {c.title} {symbol[c.reason]} {c.reason}"
+        if c.detail:
+            row += f" {c.detail}"
+        print(row)
+    if not result:
+        print("no candidates — nothing has an open signal right now")
+    return 0
+
+
+def cmd_sources(args: argparse.Namespace) -> int:
+    vault = Vault(root=Path(args.vault).resolve())
+    knowledge = load_knowledge(vault) or Knowledge()
+    rows = sources.yield_by_source(knowledge)
+
+    if args.json:
+        print(
+            json.dumps(
+                [
+                    {
+                        "ref": r.ref,
+                        "concept_count": r.concept_count,
+                        "explained_count": r.explained_count,
+                        "applied_count": r.applied_count,
+                    }
+                    for r in rows
+                ],
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+
+    for r in rows:
+        print(
+            f"{r.ref}  {r.concept_count} conceptos "
+            f"· {r.explained_count} explicados "
+            f"· {r.applied_count} aplicados"
+        )
+    if not rows:
+        print("no sources recorded yet")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="quiron")
     sub = p.add_subparsers(dest="command", required=True)
@@ -241,6 +328,21 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--record-review", metavar="FILE", help="apply a JSON list of ReviewProposal after harvard-reviewer ran")
     sp.add_argument("--json", action="store_true", help="with --audit, print JSON instead of a text summary")
     sp.set_defaults(func=cmd_cards)
+
+    sp = sub.add_parser("evidence")
+    sp.add_argument("--vault", required=True)
+    sp.add_argument("--add", action="store_true", required=True, help="only action today; explicit flag leaves room for --list later")
+    sp.add_argument("--card", required=True, help="card path relative to the vault root")
+    sp.add_argument("--kind", required=True, choices=["encountered", "explained", "applied"])
+    sp.add_argument("--ref", required=True)
+    sp.add_argument("--scope")
+    sp.set_defaults(func=cmd_evidence)
+
+    for name, fn in (("next", cmd_next), ("sources", cmd_sources)):
+        sp = sub.add_parser(name)
+        sp.add_argument("--vault", required=True)
+        sp.add_argument("--json", action="store_true")
+        sp.set_defaults(func=fn)
 
     return p
 

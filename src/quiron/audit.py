@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from . import cardtext
+from .cardmap import card_to_concept
 from .headings import REF_LINE_RE, extract_ref
 from .schema import Concept, Knowledge
 from .seed import seed
@@ -69,14 +70,6 @@ def _load_cards(vault: Vault) -> dict[str, tuple[str, bool]]:
         fm, body = read_frontmatter(vault, p)
         self_explain = bool(fm.get("self-explain")) if fm else False
         out[vault.relative(p)] = (body, self_explain)
-    return out
-
-
-def _card_to_concept(knowledge: Knowledge) -> dict[str, str]:
-    out: dict[str, str] = {}
-    for c in knowledge.concepts:
-        for cr in c.card_refs:
-            out[cr.path] = c.slug
     return out
 
 
@@ -140,7 +133,7 @@ def run(vault: Vault, knowledge: Knowledge, notes_info: dict[int, dict] | None =
     is unreachable — layer 2 is then simply skipped, layer 1 still runs.
     """
     cards = _load_cards(vault)
-    card_to_slug = _card_to_concept(knowledge)
+    card_to_slug = card_to_concept(knowledge)
     by_slug = {c.slug: c for c in knowledge.concepts}
 
     flags = layer1_flags(cards)

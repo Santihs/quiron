@@ -1,5 +1,16 @@
 # Decisions
 
+## `quiron next`'s `coverage_gap` detail is empty, not a lesson count (Fase 4)
+
+`Quiron.md`'s worked example for `quiron next` shows `sección 4 / MCP ✗ 28
+lecciones sin tocar` — a per-lesson progress count. The schema has no field
+for that (`Source` is just `kind` + `ref`, no lesson-level tracking), so
+fabricating it would mean inventing data the system never collected.
+`coverage_gap` candidates carry an empty `detail` instead — same posture as
+Fase 2's `coverage_gap` tier-color divergence: the worked example is
+illustrative, not a literal spec, and a real field beats a plausible-looking
+number with no source.
+
 ## `self-explain: true` cards get a wider length budget and skip the enumeration check (Fase 3)
 
 First run of `audit.py`'s `too_long` check (`MAX_WORDS=50`) against the real
