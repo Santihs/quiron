@@ -23,6 +23,44 @@ def undecided(knowledge: Knowledge) -> list[Concept]:
     return [c for c in knowledge.concepts if c.card_policy == "undecided"]
 
 
+@dataclass(frozen=True)
+class PolicyDecision:
+    """One concept's retention decision, arrived at conversationally (e.g. by
+    the quiron-cards-decide skill) rather than typed into decide()'s input()
+    loop. Same role as audit.ReviewProposal: a batch a skill can build once
+    it has judgment, handed to a deterministic apply function."""
+
+    slug: str
+    card_policy: str  # "needed" | "declined"
+    declined_reason: str | None = None
+
+
+@dataclass
+class SetPolicyReport:
+    decided: list[str] = field(default_factory=list)
+    skipped_unknown_slug: list[str] = field(default_factory=list)
+
+
+def set_policy(knowledge: Knowledge, decisions: list[PolicyDecision]) -> SetPolicyReport:
+    """Non-interactive counterpart to decide() — applies a batch of already-made
+    decisions instead of prompting for them. Exists so a Claude Code skill can
+    drive this instead of only a human typing into a real terminal (decide()'s
+    input() loop can't be scripted from a skill). decide() is untouched; this
+    is a second door into the same state, not a replacement."""
+    report = SetPolicyReport()
+    by_slug = {c.slug: c for c in knowledge.concepts}
+    for d in decisions:
+        concept = by_slug.get(d.slug)
+        if concept is None:
+            report.skipped_unknown_slug.append(d.slug)
+            continue
+        concept.card_policy = d.card_policy
+        if d.card_policy == "declined":
+            concept.declined_reason = d.declined_reason
+        report.decided.append(d.slug)
+    return report
+
+
 @dataclass
 class DecideReport:
     decided: int = 0

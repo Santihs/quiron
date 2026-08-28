@@ -186,7 +186,41 @@ def cmd_cards(args: argparse.Namespace) -> int:
                 print(f"  - {path}")
         return 0
 
-    print("nothing to do — pass --decide, --list-gaps, --audit, or --record-review")
+    if args.list_undecided:
+        pending = coverage.undecided(knowledge)
+        if args.json:
+            print(
+                json.dumps(
+                    [
+                        {"slug": c.slug, "title": c.title, "notes_ref": c.notes_ref}
+                        for c in pending
+                    ],
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        else:
+            print(f"{len(pending)} undecided concepts")
+            for c in pending:
+                print(f"  - {c.slug} ({c.notes_ref})")
+        return 0
+
+    if args.set_policy:
+        raw = json.loads(Path(args.set_policy).read_text(encoding="utf-8"))
+        decisions = [coverage.PolicyDecision(**d) for d in raw]
+        policy_report = coverage.set_policy(knowledge, decisions)
+        save_knowledge(vault, knowledge)
+        print(f"decided: {len(policy_report.decided)}")
+        if policy_report.skipped_unknown_slug:
+            print(f"skipped (unknown slug): {len(policy_report.skipped_unknown_slug)}")
+            for slug in policy_report.skipped_unknown_slug:
+                print(f"  - {slug}")
+        return 0
+
+    print(
+        "nothing to do — pass --decide, --list-gaps, --list-undecided, --audit, "
+        "--record-review, or --set-policy"
+    )
     return 1
 
 
@@ -330,9 +364,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--deck", default="karpathy", help="live quiz-bank deck folder under 04-Quiz-Bank/ (used by --audit)")
     sp.add_argument("--decide", action="store_true", help="interactive retention-decision walker")
     sp.add_argument("--list-gaps", action="store_true", help="list needed-but-empty concepts")
+    sp.add_argument("--list-undecided", action="store_true", help="list concepts with no retention decision yet, non-interactively")
     sp.add_argument("--audit", action="store_true", help="read-only card-quality report (layers 1+2)")
     sp.add_argument("--record-review", metavar="FILE", help="apply a JSON list of ReviewProposal after harvard-reviewer ran")
-    sp.add_argument("--json", action="store_true", help="with --audit, print JSON instead of a text summary")
+    sp.add_argument("--set-policy", metavar="FILE", help="apply a JSON list of PolicyDecision — non-interactive counterpart to --decide, for a skill/agent to drive")
+    sp.add_argument("--json", action="store_true", help="with --audit or --list-undecided, print JSON instead of a text summary")
     sp.set_defaults(func=cmd_cards)
 
     sp = sub.add_parser("evidence")

@@ -1,4 +1,4 @@
-from quiron.coverage import coverage_gap, decide, undecided
+from quiron.coverage import PolicyDecision, coverage_gap, decide, set_policy, undecided
 from quiron.schema import CardRef, Concept, Knowledge
 
 
@@ -100,3 +100,46 @@ def test_decide_only_walks_undecided_not_already_decided():
     assert report.decided == 1
     assert k.concepts[0].card_policy == "needed"
     assert k.concepts[1].card_policy == "declined"
+
+
+def test_set_policy_applies_needed_and_declined_with_reason():
+    k = Knowledge(
+        concepts=[
+            Concept(slug="a", title="A", unit="phase-0"),
+            Concept(slug="b", title="B", unit="phase-0"),
+        ]
+    )
+    report = set_policy(
+        k,
+        [
+            PolicyDecision(slug="a", card_policy="needed"),
+            PolicyDecision(slug="b", card_policy="declined", declined_reason="ya lo se de memoria"),
+        ],
+    )
+    assert report.decided == ["a", "b"]
+    assert report.skipped_unknown_slug == []
+    by_slug = {c.slug: c for c in k.concepts}
+    assert by_slug["a"].card_policy == "needed"
+    assert by_slug["b"].card_policy == "declined"
+    assert by_slug["b"].declined_reason == "ya lo se de memoria"
+
+
+def test_set_policy_unknown_slug_is_skipped_not_raised():
+    k = Knowledge(concepts=[Concept(slug="a", title="A", unit="phase-0")])
+    report = set_policy(k, [PolicyDecision(slug="ghost", card_policy="needed")])
+    assert report.decided == []
+    assert report.skipped_unknown_slug == ["ghost"]
+    assert k.concepts[0].card_policy == "undecided"
+
+
+def test_set_policy_leaves_untargeted_concepts_undecided():
+    k = Knowledge(
+        concepts=[
+            Concept(slug="a", title="A", unit="phase-0"),
+            Concept(slug="b", title="B", unit="phase-0"),
+        ]
+    )
+    set_policy(k, [PolicyDecision(slug="a", card_policy="needed")])
+    by_slug = {c.slug: c for c in k.concepts}
+    assert by_slug["a"].card_policy == "needed"
+    assert by_slug["b"].card_policy == "undecided"

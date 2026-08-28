@@ -139,3 +139,55 @@ def test_record_review_via_cli_persists(tmp_path):
     assert cr.reviewer_verdict == "fine"
     assert cr.lapses_at_review == 7
     assert cr.reviewed_at is not None
+
+
+def test_list_undecided_json(tmp_path, capsys):
+    (tmp_path / "00-Meta").mkdir()
+    v = Vault(root=tmp_path)
+    save_knowledge(
+        v,
+        Knowledge(
+            concepts=[
+                Concept(slug="a", title="A", unit="phase-0", notes_ref="02-Topics/a.md"),
+                Concept(slug="b", title="B", unit="phase-0", card_policy="needed"),
+            ]
+        ),
+    )
+    rc = main(["cards", "--vault", str(tmp_path), "--list-undecided", "--json"])
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data == [{"slug": "a", "title": "A", "notes_ref": "02-Topics/a.md"}]
+
+
+def test_set_policy_via_cli_persists(tmp_path):
+    (tmp_path / "00-Meta").mkdir()
+    v = Vault(root=tmp_path)
+    save_knowledge(
+        v,
+        Knowledge(
+            concepts=[
+                Concept(slug="a", title="A", unit="phase-0"),
+                Concept(slug="b", title="B", unit="phase-0"),
+            ]
+        ),
+    )
+    proposals_path = tmp_path / "policy.json"
+    proposals_path.write_text(
+        json.dumps(
+            [
+                {"slug": "a", "card_policy": "needed"},
+                {"slug": "b", "card_policy": "declined", "declined_reason": "no aplica"},
+                {"slug": "ghost", "card_policy": "needed"},
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    rc = main(["cards", "--vault", str(tmp_path), "--set-policy", str(proposals_path)])
+    assert rc == 0
+
+    k = load_knowledge(v)
+    by_slug = {c.slug: c for c in k.concepts}
+    assert by_slug["a"].card_policy == "needed"
+    assert by_slug["b"].card_policy == "declined"
+    assert by_slug["b"].declined_reason == "no aplica"

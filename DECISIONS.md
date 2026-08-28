@@ -1,5 +1,36 @@
 # Decisions
 
+## `cards --set-policy` + `quiron-cards-decide`: give `--decide` an agent-drivable door
+
+`quiron cards --decide` (Fase 2) is a blocking `input()` loop — the
+interaction and the persistence live in the same function
+(`coverage.decide`). Every other phase in this project keeps Python
+deterministic and puts judgment in a Claude Code skill (`quiron-inbox` is the
+model: scan/validate/write in Python, classification in the skill, apply
+back through Python). `--decide` was the one place that split never
+happened, and it went unnoticed until claude-devtalles seeded 20 concepts,
+all `undecided`, with titles alone giving no real basis to decide — the
+walker's one-line-per-concept format has no room to show the actual note
+content.
+
+Fix follows the exact precedent already in this codebase —
+`audit.ReviewProposal`/`record_review` — rather than inventing a new shape:
+`coverage.PolicyDecision` (slug, card_policy, optional declined_reason) and
+`coverage.set_policy(knowledge, decisions) -> SetPolicyReport` apply a
+pre-made batch of decisions non-interactively; unknown slugs land in
+`skipped_unknown_slug` instead of raising, same posture as every other batch
+apply in this codebase (`inbox.apply_proposals`, `audit.record_review`).
+Wired into the CLI as `cards --set-policy FILE`, alongside a small read-only
+`cards --list-undecided [--json]` (nothing previously exposed the undecided
+list without triggering the interactive walker). `coverage.decide()` and
+`cards --decide` are untouched — still the right tool outside Claude Code.
+
+`quiron-cards-decide` (new skill, `templates/skills/quiron-cards-decide/`,
+vault-agnostic like `quiron-inbox` — no parameters block) is the actual
+payoff: it reads each undecided concept's `notes_ref` file so the user
+decides from real content, accepts natural-language answers instead of
+forced `n`/`d`/`s` keystrokes, and persists through `--set-policy`.
+
 ## Fase 6: `quiron/templates/` as canon, reviewer parametrized, quiz-me partially templated
 
 Full inventory of both vaults' `.claude/{agents,skills,commands}/` before deciding what's
