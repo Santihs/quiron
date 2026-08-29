@@ -1,5 +1,41 @@
 # Decisions
 
+## `quiron-anki-sync` skill: yanki is headless, not Obsidian-only
+
+`Quiron.md`'s risk list claimed "Obsidian is required for sync, not
+optional" — yanki assumed to be an Obsidian-only plugin with no scriptable
+path. Wrong, discovered while closing the loop on claude-devtalles' 14 new
+cards (from `quiron-cards-decide`): `npx yanki sync <dir>` is a headless npm
+CLI. Verified live: `--dry-run` first (14 creates, 0 touched/deleted, safe to
+inspect before committing), then a real run, matching the vault's *existing*
+sync group via `--namespace "Obsidian - Vault ID <id>"` — read that id off
+any already-synced note's `YankiNamespace` field in Anki before running, so
+the new notes join the same group instead of forking a second one under
+yanki's default `"Yanki"` namespace.
+
+The same trip surfaced real drift worth generalizing past: claude-devtalles'
+Anki deck had 45 notes against only 17 live `## Q:` blocks in the vault — 30
+notes whose source content had since been rewritten into `02-Topics/` prose
+and never cleaned up Anki-side (yanki only pushes; it doesn't reconcile
+deletions when a file's Q&A block simply disappears from a *different* file
+than the one it manages). Diagnosed with a one-off AnkiConnect diff script,
+confirmed against the vault by hand, deleted via `deleteNotes` — sensitive
+enough to require standing user confirmation each time (Claude Code's own
+auto-mode classifier blocks `deleteNotes` outright without it), so this stays
+a diff-and-report skill, never an auto-delete one.
+
+`quiron-anki-sync` (new skill, `templates/skills/quiron-anki-sync/`,
+vault-agnostic): wraps the `--dry-run`-then-real `npx yanki sync` flow for
+pushing new/changed cards, and a separate orphan-detection pass (AnkiConnect
+`findNotes`+`notesInfo` vs. a scan of the vault's `## Q:`/`Ref:` sources) that
+lists candidates and always waits for explicit per-run confirmation before
+calling `deleteNotes` — never bundled into the push side, and never run
+unattended. `ankiconnect.py` stays read-only for quiron's own Python (no
+`addNote`/`deleteNotes` added there) — this skill drives `yanki`/AnkiConnect
+directly as a Claude Code capability, not as a quiron CLI subcommand, keeping
+the "quiron's Python never writes to Anki" boundary from `Quiron.md` intact
+even though the *mechanism* for a human process to do so is now scriptable.
+
 ## `cards --set-policy` + `quiron-cards-decide`: give `--decide` an agent-drivable door
 
 `quiron cards --decide` (Fase 2) is a blocking `input()` loop — the
