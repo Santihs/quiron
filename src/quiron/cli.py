@@ -12,6 +12,7 @@ from .capture import scan_and_merge
 from .doctor import run as doctor_run
 from .evidence import add_evidence
 from .inbox import Proposal, apply_proposals
+from .migrate import run_migrate
 from .schema import Knowledge
 from .seed import seed as seed_run
 from .today import build_report, render
@@ -245,6 +246,37 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_migrate(args: argparse.Namespace) -> int:
+    vault_path = Path(args.vault).resolve()
+    is_existing = (vault_path / "00-Meta" / "knowledge.json").exists()
+    if args.dry_run is None:
+        dry_run = is_existing  # existing vault: safe by default; new vault: nothing to lose
+    else:
+        dry_run = args.dry_run.lower() != "false"
+
+    answers = {
+        "subject_expertise": args.subject_expertise,
+        "deck_path": args.deck_path,
+        "topic_notes_path": args.topic_notes_path,
+        "resync_command": args.resync_command,
+        "domain_framing": args.domain_framing,
+    }
+    report = run_migrate(vault_path, answers, dry_run=dry_run, deck=args.deck)
+
+    if dry_run:
+        print("dry run — nothing written (pass --dry-run=false to apply)")
+        return 0
+
+    if report.seed_report:
+        sr = report.seed_report
+        print(f"concepts: {sr.concepts_created} created, {sr.concepts_refreshed} refreshed")
+    if report.doctor_report:
+        dr = report.doctor_report
+        print(f"doctor: {dr.concept_count} concepts, {len(dr.dangling_refs)} dangling refs, "
+              f"{len(dr.orphaned_concepts)} orphaned, {len(dr.unlinked_doubts)} unlinked doubts")
+    return 0
+
+
 def cmd_evidence(args: argparse.Namespace) -> int:
     vault = Vault(root=Path(args.vault).resolve())
     knowledge = load_knowledge(vault) or Knowledge()
@@ -379,6 +411,33 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--ref", required=True)
     sp.add_argument("--scope")
     sp.set_defaults(func=cmd_evidence)
+
+    sp = sub.add_parser("migrate")
+    sp.add_argument("--vault", required=True, help="path to the Obsidian vault root (created if missing)")
+    sp.add_argument("--deck", default="karpathy", help="live quiz-bank deck folder under 04-Quiz-Bank/")
+    sp.add_argument("--subject-expertise", default="", dest="subject_expertise")
+    sp.add_argument("--deck-path", default="04-Quiz-Bank/*.md", dest="deck_path")
+    sp.add_argument("--topic-notes-path", default="02-Topics/*.md", dest="topic_notes_path")
+    sp.add_argument(
+        "--resync-command",
+        default="not applicable — no live per-card Anki-synced deck for this vault yet",
+        dest="resync_command",
+    )
+    sp.add_argument(
+        "--domain-framing",
+        default="or a claim that doesn't hold up under scrutiny",
+        dest="domain_framing",
+    )
+    sp.add_argument(
+        "--dry-run",
+        nargs="?",
+        const="true",
+        default=None,
+        help="report what would change without writing; defaults to on for an "
+        "existing vault (has 00-Meta/knowledge.json already) and off for a new "
+        "one. Pass --dry-run=false to force apply.",
+    )
+    sp.set_defaults(func=cmd_migrate)
 
     for name, fn in (("next", cmd_next), ("sources", cmd_sources)):
         sp = sub.add_parser(name)

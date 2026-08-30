@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Knowledge model layered above Anki for Obsidian learning vaults"
 requires-python = ">=3.12"
 dependencies = [
+    "copier>=9.17.2",
     "pydantic>=2",
     "pyyaml>=6",
 ]

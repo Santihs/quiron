@@ -1,0 +1,65 @@
+# Copier config for scaffolding quiron's plumbing into a vault.
+# _templates_suffix: "" is REQUIRED — without it, copier only renders
+# files ending in .jinja, and every {{ }} placeholder in this directory
+# (skills/*/SKILL.md, agents/quiz-reviewer.md, commands/quiz-me.md) would
+# copy as literal unrendered text. Confirmed against a real copier run
+# (quiron/migrate/ sandbox, deleted, see DECISIONS.md).
+_templates_suffix: ""
+
+_exclude:
+  - "copier.yml"
+  - "README.md"
+
+_skip_if_exists:
+  - "CLAUDE.md"
+  - "03-Daily-Logs/_template.md"
+  - "00-Meta/knowledge.json"
+  - "00-Meta/inbox.jsonl"
+  - "00-Meta/history.jsonl"
+  # quiz-me.md is NOT byte-identical-modulo-params like the skills/agent
+  # files -- it's a shared core with a vault-specific extension layered on
+  # top (Anki deck, self-explain, evidence wiring). Overwriting it here
+  # would destroy that extension. Confirmed against karpathy-path's real
+  # file during Fase 7 dry-run testing -- see DECISIONS.md.
+  - ".claude/commands/quiz-me.md"
+  # quiz-reviewer.md and quiz-review/SKILL.md carry real card-format
+  # knowledge beyond the 5 params here (Ref: line convention, frontmatter,
+  # self-explain -- true for karpathy, false for devtalles' plain
+  # ## Q:/**A:** pairs with no Ref: line, Fase 5's deliberate adaptation).
+  # Confirmed by dry-run diff against devtalles: applying for real would
+  # have overwritten that adaptation with karpathy-shaped assumptions.
+  # Scaffolded once with the initial params, then vault-owned -- same
+  # posture as quiz-me.md, not kept in perpetual sync. See DECISIONS.md.
+  - ".claude/agents/quiz-reviewer.md"
+  - ".claude/skills/quiz-review/SKILL.md"
+
+subject_expertise:
+  type: str
+  help: >-
+    One or two sentences describing the domain and the reviewer's expected
+    expertise (used by quiz-reviewer.md to frame its accuracy checks).
+  default: ""
+
+deck_path:
+  type: str
+  help: "Glob for this vault's live quiz-bank deck, e.g. 04-Quiz-Bank/*.md"
+  default: "04-Quiz-Bank/*.md"
+
+topic_notes_path:
+  type: str
+  help: "Glob for this vault's topic notes, e.g. 02-Topics/*.md"
+  default: "02-Topics/*.md"
+
+resync_command:
+  type: str
+  help: >-
+    Command to re-sync the deck to Anki after a card changes, or a note
+    that there isn't one yet.
+  default: "not applicable — no live per-card Anki-synced deck for this vault yet"
+
+domain_framing:
+  type: str
+  help: >-
+    A short domain-specific clause quiz-reviewer.md inserts when checking
+    topic notes for rigor (e.g. "or a math derivation skipping a step").
+  default: "or a claim that doesn't hold up under scrutiny"

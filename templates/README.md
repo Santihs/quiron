@@ -5,24 +5,20 @@ vault uses — the same role `src/quiron/` plays for the Python side. Before thi
 assets got hand-copied between vaults with no common source (`quiron-inbox/SKILL.md` first, in
 Fase 5); this directory is where you edit first, going forward.
 
-## How sync works today (Fase 6): manual
+## How sync works (Fase 7): `quiron migrate`
 
-There is no templating engine yet. To apply a change:
+`quiron migrate --vault <path> --subject-expertise "..." --deck-path "..." ...` (see
+`src/quiron/migrate.py`, `.claude/skills/quiron-init/SKILL.md`) wraps `copier` against this
+directory. It fills in `{{ params }}`, skips files a vault has hand-authored
+(`_skip_if_exists` in `copier.yml`: `CLAUDE.md`, `03-Daily-Logs/_template.md`, the three
+`00-Meta/` seed files), and defaults to a dry-run whenever the target vault already has a
+`00-Meta/knowledge.json` — pass `--dry-run=false` to apply. Everything under `.claude/` here
+(`skills/`, `agents/`, `commands/`) is meant to land byte-identical in every vault modulo those
+params; a skill that needs to genuinely diverge (not just different params) doesn't belong here
+at all — see `DECISIONS.md`'s Fase 6 entry on `session-close`/`wrap-up`.
 
-1. Edit the file here.
-2. Copy it into each vault that uses it (`<vault>/.claude/agents/...`, `<vault>/.claude/skills/...`).
-3. For files with a `## Parameters for this vault` block (currently `agents/quiz-reviewer.md`
-   and `skills/quiz-review/SKILL.md`), fill in that vault's `{{ mustache }}` placeholders —
-   everything else in the file should stay byte-identical to the template.
-
-Files with no parameters block (`skills/quiron-inbox/SKILL.md`) are copied verbatim, no edits.
-
-## What Fase 7 automates
-
-Fase 7 ("template, only if 1-6 hold") introduces `copier` + `copier.yml` + `quiron migrate`.
-The `{{ }}` placeholder syntax used here is deliberately copier/Jinja-compatible so those files
-can be consumed directly by that tooling without a rewrite — this phase proves the parameter
-shape works by hand first.
+Before Fase 7, this was manual copy-paste per vault — no longer needed, `quiron migrate` is the
+only way to sync a change here into a vault now.
 
 ## What's NOT here, on purpose
 

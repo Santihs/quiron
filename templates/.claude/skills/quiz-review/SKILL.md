@@ -6,16 +6,16 @@ description: Dispatch the quiz-reviewer subagent (a subject-matter + learning-sc
 # quiz-review
 
 ## Parameters for this vault
-- **Deck path:** {{ deck_path }}
-- **Topic notes path:** {{ topic_notes_path }}
-- **Re-sync command:** {{ resync_command }}
+- **Deck path:** `{{ deck_path }}`
+- **Topic notes path:** `{{ topic_notes_path }}`
+- **Re-sync command:** `{{ resync_command }}`
 
 One read-only subagent (`quiz-reviewer`, see `.claude/agents/quiz-reviewer.md`) does the actual reviewing — this skill is just the workflow around dispatching it, applying its findings, and cleaning up afterward. Never review inline yourself as the main thread; the whole point is a second, adversarial, expert pass that isn't anchored on the same reasoning that produced the material.
 
 ## When to use which mode
 
-- **Cards mode**: user just generated (or wants to check) quiz cards in {{ deck_path }}. Handles accuracy AND Anki modularity/sizing in one dispatch — never split these into two separate agent calls, the reviewer does both passes itself (see its own instructions).
-- **Notes mode**: user wants a note in {{ topic_notes_path }} checked for rigor, completeness, or accuracy.
+- **Cards mode**: user just generated (or wants to check) quiz cards in `{{ deck_path }}`. Handles accuracy AND Anki modularity/sizing in one dispatch — never split these into two separate agent calls, the reviewer does both passes itself (see its own instructions).
+- **Notes mode**: user wants a note in `{{ topic_notes_path }}` checked for rigor, completeness, or accuracy.
 - **Both**: if the session produced a note AND cards derived from it in the same sitting, one dispatch can review both — say so explicitly in the prompt so the agent gives you two clearly separated report sections instead of conflating them.
 
 ## Workflow
@@ -26,7 +26,7 @@ One read-only subagent (`quiz-reviewer`, see `.claude/agents/quiz-reviewer.md`) 
 
 3. **Apply the fixes.** The agent never edits files itself — read its report and apply each recommended change with Edit/Write, same as you would from any code review. For card splits: create the new files, trim/delete the old ones per the report, keep tags and `self-explain` flags as the report specifies. Don't silently skip a recommendation — if you disagree with one, say so to the user rather than quietly dropping it.
 
-4. **Re-sync if cards changed.** Any time a card file is added, edited, or removed, run {{ resync_command }} so the live deck matches the vault. Skip this step if only a topic note was reviewed, or if this vault has no re-sync command yet.
+4. **Re-sync if cards changed.** Any time a card file is added, edited, or removed, run `{{ resync_command }}` so the live deck matches the vault. Skip this step if only a topic note was reviewed, or if this vault has no re-sync command yet.
 
 5. **Report back to the user.** Summarize what the reviewer flagged and what you changed — don't just say "done", give them the punch list (matches this vault's existing convention of terse-but-complete session summaries).
 

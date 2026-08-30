@@ -1,5 +1,48 @@
 # Decisions
 
+## Fase 7: `quiron migrate` wraps `copier` against `templates/`, dry-run by default on existing vaults
+
+Fase 6 left `templates/` as canon but the sync onto each vault was manual
+copy-paste (`templates/README.md` said so explicitly, and named this phase
+as its automation). `quiron migrate` (`src/quiron/migrate.py`) is that
+automation: `copier.run_copy()` against `templates/`, then the existing
+`seed.py`/`doctor.py` passes, reused rather than reimplemented — no second
+templating engine, no hand-rolled skip-if-exists logic.
+
+**Scope, deliberately narrow.** It scaffolds only the quiron-specific
+plumbing: `.claude/skills|agents|commands/` (parametrized), the
+capture-callout block in `03-Daily-Logs/_template.md`, and the three
+`00-Meta/` seed files. It does not generate vault pedagogy — `CLAUDE.md`
+session protocols, `01-Phases/` vs `01-Sections/` structure, git init, Anki
+deck/namespace setup all stay hand-authored, same as today, for both
+existing vaults and a new one. Templating pedagogy would mean guessing a
+one-size-fits-all study loop; karpathy's and devtalles' `CLAUDE.md` files
+already diverge on purpose (see the "Fase 5 generalization" entry below).
+
+**`_templates_suffix: ""` is required, and was not obvious.** copier's
+default only renders files ending in `.jinja`; every file already in
+`templates/` (`skills/*/SKILL.md`, `agents/quiz-reviewer.md`,
+`commands/quiz-me.md`) has `{{ }}` placeholders with no `.jinja` suffix,
+Fase 6's naming convention. Without this setting, every placeholder would
+copy as literal unrendered text into every vault. Found by running copier
+for real against a throwaway sandbox (`quiron/migrate/`, gitignored, never
+committed) before writing `migrate.py` — confirmed rather than assumed.
+
+**Skill/agent/command files are deliberately NOT in `_skip_if_exists`.**
+Only `CLAUDE.md`, `03-Daily-Logs/_template.md`, and the three `00-Meta/`
+seed files are protected on a re-run. Everything else is meant to stay
+byte-identical to `templates/` modulo `{{ params }}` — that's the whole
+point of Fase 6 having a canonical source. A vault that needs a skill to
+genuinely diverge (not just different params) shouldn't put it in
+`templates/` at all — same reasoning already applied to `session-close`/
+`wrap-up` staying vault-specific (Fase 6 entry below). Because a
+customization beyond params WOULD be silently overwritten otherwise,
+`quiron migrate` defaults to a dry-run (copier's own create/update/skip
+plan, nothing written) whenever the target vault already has a
+`00-Meta/knowledge.json` — a brand-new vault has nothing to lose and
+applies directly. Same precedent as `quiron-anki-sync`'s
+`yanki sync --dry-run` step.
+
 ## `quiron-anki-sync` skill: yanki is headless, not Obsidian-only
 
 `Quiron.md`'s risk list claimed "Obsidian is required for sync, not

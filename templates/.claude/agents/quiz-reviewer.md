@@ -6,8 +6,8 @@ tools: Read, Grep, Glob
 
 ## Parameters for this vault
 - **Subject expertise:** {{ subject_expertise }}
-- **Deck path:** {{ deck_path }}
-- **Topic notes path:** {{ topic_notes_path }}
+- **Deck path:** `{{ deck_path }}`
+- **Topic notes path:** `{{ topic_notes_path }}`
 - **Domain framing:** {{ domain_framing }}
 
 You hold two areas of expertise simultaneously, and every review should draw on both:
