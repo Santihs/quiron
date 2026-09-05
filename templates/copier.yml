@@ -1,7 +1,8 @@
 # Copier config for scaffolding quiron's plumbing into a vault.
 # _templates_suffix: "" is REQUIRED — without it, copier only renders
 # files ending in .jinja, and every {{ }} placeholder in this directory
-# (skills/*/SKILL.md, agents/quiz-reviewer.md, commands/quiz-me.md) would
+# (skills/*/SKILL.md, agents/quiz-reviewer.md, commands/quiz-me.md,
+# AGENTS.md, and their .opencode counterparts) would
 # copy as literal unrendered text. Confirmed against a real copier run
 # (quiron/migrate/ sandbox, deleted, see DECISIONS.md).
 _templates_suffix: ""
@@ -9,9 +10,12 @@ _templates_suffix: ""
 _exclude:
   - "copier.yml"
   - "README.md"
+  - "_shared"
+  - "_shared/**"
 
 _skip_if_exists:
   - "CLAUDE.md"
+  - "AGENTS.md"
   - "03-Daily-Logs/_template.md"
   - "00-Meta/knowledge.json"
   - "00-Meta/inbox.jsonl"
@@ -22,6 +26,7 @@ _skip_if_exists:
   # would destroy that extension. Confirmed against karpathy-path's real
   # file during Fase 7 dry-run testing -- see DECISIONS.md.
   - ".claude/commands/quiz-me.md"
+  - ".opencode/commands/quiz-me.md"
   # quiz-reviewer.md and quiz-review/SKILL.md carry real card-format
   # knowledge beyond the 5 params here (Ref: line convention, frontmatter,
   # self-explain -- true for karpathy, false for devtalles' plain
@@ -32,6 +37,8 @@ _skip_if_exists:
   # posture as quiz-me.md, not kept in perpetual sync. See DECISIONS.md.
   - ".claude/agents/quiz-reviewer.md"
   - ".claude/skills/quiz-review/SKILL.md"
+  - ".opencode/agents/quiz-reviewer.md"
+  - ".opencode/skills/quiz-review/SKILL.md"
 
 subject_expertise:
   type: str

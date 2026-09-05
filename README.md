@@ -15,6 +15,7 @@ uv run quiron today --vault ../karpathy-path          # the only command you nee
 uv run quiron cards --vault ../karpathy-path --decide      # retention decision walker
 uv run quiron cards --vault ../karpathy-path --list-gaps   # needed-but-empty concepts
 uv run quiron doctor --vault ../karpathy-path --json  # findings: dangling refs, orphans, loose doubts
+uv run quiron migrate --vault ../karpathy-path        # scaffold/sync Claude Code + OpenCode prompt plumbing
 ```
 
 `seed` and `capture-scan` are idempotent — running them again never
@@ -33,9 +34,11 @@ the one v7 question that needs it without overlapping Fase 3: the
 understand-vs-recall contradiction. `quiron today` never fails when Anki is
 closed — it just omits that line.
 
-Not yet built: card-quality audit (Fase 3), full evidence wiring through
-`quiz-me` (Fase 4), a second vault (Fase 5), a parametrized reviewer (Fase
-6), a copier template (Fase 7).
+Built through Fase 7: multi-vault seeding, card-policy decisions,
+card-quality audit plumbing, evidence wiring, parametrized reviewer templates,
+and `quiron migrate` for Claude Code + OpenCode prompt plumbing. Still open:
+full polish of vault-specific quiz flows and any future agent adapters beyond
+Claude Code/OpenCode.
 
 ## Tests
 

@@ -1,5 +1,26 @@
 # Decisions
 
+## Assistant plumbing targets both Claude Code and OpenCode; pedagogy stays vault-owned
+
+`quiron migrate` now scaffolds both `.claude/` and `.opencode/` prompt
+plumbing from the same `templates/` source. This is a maintenance feature, not
+a second vault model: Quiron still owns shared workflows (`quiron-inbox`,
+`quiron-cards-*`, `quiz-review`, `quiz-reviewer`, and the shared `quiz-me`
+core), while each vault owns its learning protocol in `CLAUDE.md`.
+
+OpenCode needs an `AGENTS.md` bridge because it does not automatically treat
+`CLAUDE.md` as project memory. The bridge is intentionally thin: read and
+follow `CLAUDE.md`, translate slash commands to `.opencode/commands/`, and use
+`.opencode/skills|agents/` for Quiron workflows. It does not duplicate
+karpathy/devtalles pedagogy or prescribe a generic study loop.
+
+The same skip posture from Fase 7 applies to OpenCode. `AGENTS.md`,
+`.opencode/commands/quiz-me.md`, `.opencode/agents/quiz-reviewer.md`, and
+`.opencode/skills/quiz-review/SKILL.md` are protected after first scaffold
+because they can carry real vault-specific card-format knowledge. The remaining
+OpenCode Quiron workflow skills are thin wrappers over the same deterministic
+CLI doors and should stay synchronized from `templates/`.
+
 ## Fase 7: `quiron migrate` wraps `copier` against `templates/`, dry-run by default on existing vaults
 
 Fase 6 left `templates/` as canon but the sync onto each vault was manual

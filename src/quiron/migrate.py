@@ -2,8 +2,9 @@
 
 Wraps `copier.run_copy()` against `templates/` rather than reimplementing
 skip-if-exists/Jinja substitution — see DECISIONS.md for why. Does not
-touch vault pedagogy (CLAUDE.md content, 01-*/ structure) — only the
-quiron-specific skill/agent/command files and the 00-Meta/ seed files.
+touch vault pedagogy (CLAUDE.md content, AGENTS.md hand overrides,
+01-*/ structure) — only the quiron-specific Claude Code/OpenCode
+skill/agent/command files and the 00-Meta/ seed files.
 """
 
 from __future__ import annotations
