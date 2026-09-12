@@ -3,6 +3,7 @@ tags: [phase-0, math, linear-algebra, coding-the-matrix]
 status: learning
 first_learned: 2026-07-01
 last_reviewed: 2026-08-06
+# Legacy fixture metadata; `confidence` is not part of quiron's Knowledge schema.
 confidence: 4/5
 source_pdf: "00-Meta/resources/Klein.pdf"
 ---

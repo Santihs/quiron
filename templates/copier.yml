@@ -1,8 +1,9 @@
 # Copier config for scaffolding quiron's plumbing into a vault.
 # _templates_suffix: "" is REQUIRED — without it, copier only renders
 # files ending in .jinja, and every {{ }} placeholder in this directory
-# (skills/*/SKILL.md, agents/quiz-reviewer.md, commands/quiz-me.md,
-# AGENTS.md, and their .opencode counterparts) would
+# (_shared/skills/*.md, _shared/agents/quiz-reviewer.md,
+# _shared/commands/quiz-me-core.md, AGENTS.md, and their tool-specific
+# wrappers) would
 # copy as literal unrendered text. Confirmed against a real copier run
 # (quiron/migrate/ sandbox, deleted, see DECISIONS.md).
 _templates_suffix: ""

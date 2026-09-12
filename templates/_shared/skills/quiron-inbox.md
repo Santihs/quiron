@@ -36,7 +36,7 @@ For each capture the user approved, write one proposal object and hand the
 batch to:
 
 ```bash
-uv run --directory C:\SANTIAGO\quiron quiron inbox --apply <proposals.json>
+uv run --directory C:\SANTIAGO\quiron quiron inbox --vault <this vault> --apply <proposals.json>
 ```
 
 Each proposal needs: `capture_id`, `kind`, `target_slug` (or `null`), `text`

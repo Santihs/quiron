@@ -42,27 +42,29 @@ already diverge on purpose (see the "Fase 5 generalization" entry below).
 
 **`_templates_suffix: ""` is required, and was not obvious.** copier's
 default only renders files ending in `.jinja`; every file already in
-`templates/` (`skills/*/SKILL.md`, `agents/quiz-reviewer.md`,
-`commands/quiz-me.md`) has `{{ }}` placeholders with no `.jinja` suffix,
+`templates/` (`_shared/skills/*.md`, `_shared/agents/quiz-reviewer.md`,
+`_shared/commands/quiz-me-core.md`, and their tool-specific wrappers) has
+`{{ }}` placeholders with no `.jinja` suffix,
 Fase 6's naming convention. Without this setting, every placeholder would
 copy as literal unrendered text into every vault. Found by running copier
 for real against a throwaway sandbox (`quiron/migrate/`, gitignored, never
 committed) before writing `migrate.py` — confirmed rather than assumed.
 
-**Skill/agent/command files are deliberately NOT in `_skip_if_exists`.**
-Only `CLAUDE.md`, `03-Daily-Logs/_template.md`, and the three `00-Meta/`
-seed files are protected on a re-run. Everything else is meant to stay
-byte-identical to `templates/` modulo `{{ params }}` — that's the whole
-point of Fase 6 having a canonical source. A vault that needs a skill to
-genuinely diverge (not just different params) shouldn't put it in
-`templates/` at all — same reasoning already applied to `session-close`/
-`wrap-up` staying vault-specific (Fase 6 entry below). Because a
-customization beyond params WOULD be silently overwritten otherwise,
-`quiron migrate` defaults to a dry-run (copier's own create/update/skip
-plan, nothing written) whenever the target vault already has a
-`00-Meta/knowledge.json` — a brand-new vault has nothing to lose and
-applies directly. Same precedent as `quiron-anki-sync`'s
-`yanki sync --dry-run` step.
+**Canonical shared workflow files are not protected by default.**
+`_skip_if_exists` protects `CLAUDE.md`, `AGENTS.md`,
+`03-Daily-Logs/_template.md`, the three `00-Meta/` seed files, and the
+vault-specific `quiz-me` and `quiz-reviewer` files. Other shared Quiron
+workflow files are meant to stay byte-identical to `templates/` modulo
+`{{ params }}` — that is the purpose of Fase 6 having a canonical source.
+A vault that needs a workflow to genuinely diverge (not just different
+parameters) should not put it in the shared template; this is the same
+reasoning used for `session-close`/`wrap-up` staying vault-specific (Fase 6
+entry below). Because a customization beyond parameters would otherwise be
+silently overwritten, `quiron migrate` defaults to a dry-run (Copier's own
+create/update/skip plan) whenever the target vault already has a
+`00-Meta/knowledge.json`; a brand-new vault has nothing to lose and applies
+directly. This follows the `quiron-anki-sync` `yanki sync --dry-run`
+precedent.
 
 ## `quiron-anki-sync` skill: yanki is headless, not Obsidian-only
 
@@ -88,7 +90,7 @@ enough to require standing user confirmation each time (Claude Code's own
 auto-mode classifier blocks `deleteNotes` outright without it), so this stays
 a diff-and-report skill, never an auto-delete one.
 
-`quiron-anki-sync` (new skill, `templates/skills/quiron-anki-sync/`,
+`quiron-anki-sync` (new skill, `templates/_shared/skills/quiron-anki-sync.md`,
 vault-agnostic): wraps the `--dry-run`-then-real `npx yanki sync` flow for
 pushing new/changed cards, and a separate orphan-detection pass (AnkiConnect
 `findNotes`+`notesInfo` vs. a scan of the vault's `## Q:`/`Ref:` sources) that
@@ -102,7 +104,7 @@ even though the *mechanism* for a human process to do so is now scriptable.
 
 ## `cards --set-policy` + `quiron-cards-decide`: give `--decide` an agent-drivable door
 
-`quiron cards --decide` (Fase 2) is a blocking `input()` loop — the
+`quiron cards --vault <vault> --decide` (Fase 2) is a blocking `input()` loop — the
 interaction and the persistence live in the same function
 (`coverage.decide`). Every other phase in this project keeps Python
 deterministic and puts judgment in a Claude Code skill (`quiron-inbox` is the
@@ -125,7 +127,7 @@ Wired into the CLI as `cards --set-policy FILE`, alongside a small read-only
 list without triggering the interactive walker). `coverage.decide()` and
 `cards --decide` are untouched — still the right tool outside Claude Code.
 
-`quiron-cards-decide` (new skill, `templates/skills/quiron-cards-decide/`,
+`quiron-cards-decide` (new skill, `templates/_shared/skills/quiron-cards-decide.md`,
 vault-agnostic like `quiron-inbox` — no parameters block) is the actual
 payoff: it reads each undecided concept's `notes_ref` file so the user
 decides from real content, accepts natural-language answers instead of
@@ -137,15 +139,15 @@ Full inventory of both vaults' `.claude/{agents,skills,commands}/` before decidi
 shareable (per an explicit ask to "review what is useful too," not just template everything):
 
 - **`quiron-inbox`** was already byte-identical between vaults (confirmed by diff) — already
-  de facto shared, just with no common source. Moved into `quiron/templates/skills/`
+  de facto shared, just with no common source. Moved into `quiron/templates/_shared/`
   unchanged; both vault copies still diff clean against it.
 - **`harvard-reviewer`/`harvard-review`** generalized cleanly: of 37 lines, exactly four were
   karpathy-specific (the ML/AI framing, the hardcoded deck path, one domain-flavored phrase),
   everything else — the accuracy pass, minimum-information sizing, self-explain handling, the
   typed verdict, the report format — was already generic. Renamed `quiz-reviewer`/`quiz-review`,
   the four spots became a `## Parameters for this vault` block with `{{ mustache }}`
-  placeholders in the canonical template (`quiron/templates/agents/quiz-reviewer.md`,
-  `quiron/templates/skills/quiz-review/SKILL.md`) — deliberately copier/Jinja-compatible syntax
+  placeholders in the canonical template (`quiron/templates/_shared/agents/quiz-reviewer.md`,
+  `quiron/templates/_shared/skills/quiz-review.md`) — deliberately copier/Jinja-compatible syntax
   so Fase 7 can consume these files directly. karpathy-path's filled-in copy diffs clean
   against the template outside the parameters block.
 - **devtalles' `quiz-reviewer.md` diverges beyond the parameters block**, and that divergence is
@@ -158,16 +160,17 @@ shareable (per an explicit ask to "review what is useful too," not just template
   (accuracy pass, sizing pass, typed verdict) generalizes; a couple of format-dependent
   sentences inside it don't, yet, and forcing false uniformity there would be worse than naming
   the real difference.
-- **`quiron-cards-audit`** moved into `templates/skills/` as a canonical, parameter-free copy
+- **`quiron-cards-audit`** moved into `templates/_shared/` as a canonical, parameter-free copy
   (its `harvard-reviewer`/`harvard-review` references became `quiz-reviewer`/`quiz-review`).
   Still only lives in karpathy-path — not copied to devtalles, same root cause as Fase 5 (cards
   there aren't individually addressable, so the audit round trip has nothing to dispatch on).
-- **`/quiz-me`** got a *partial* template (`quiron/templates/commands/quiz-me.md`): the parts
-  already byte-identical in both vaults today — the `srs:` no-line-means-due-today rule,
-  generation-first flow, the strict grading rubric, and the SM-2 scheduling formula (this one
-  was already word-for-word identical before this phase). Both vaults' real `quiz-me.md` files
-  got a one-line marker comment pointing at this template for that section; nothing else about
-  either file changed — this template is a floor, not a merge. The parts that differ
+- **`/quiz-me`** got a *partial* template (`quiron/templates/_shared/commands/quiz-me-core.md`):
+  the parts already byte-identical in both vaults today — the generation-first flow and strict
+  grading rubric. The old shared copy also carried scheduler comments and SM-2 arithmetic, but
+  that text is now removed from the canonical core because Anki owns scheduling. Both vaults'
+  real `quiz-me.md` files got a one-line marker comment pointing at this template for that
+  section; nothing else about either file changed — this template is a floor, not a merge. The
+  parts that differ
   (card file format, karpathy's live-deck + `self-explain` + `quiron evidence` branch,
   topic-interleaving selection, devtalles' empty-bank draft-from-notes fallback and
   save-new-question step) stay as genuine per-vault extensions.
