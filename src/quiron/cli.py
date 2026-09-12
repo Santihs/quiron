@@ -5,12 +5,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 from . import ankiconnect, audit, coverage, nextup, recall, sources
 from .capture import scan_and_merge
 from .doctor import run as doctor_run
 from .evidence import add_evidence
+from .errors import QuironError
 from .inbox import Proposal, apply_proposals
 from .migrate import run_migrate
 from .schema import Knowledge
@@ -35,13 +37,36 @@ def save_knowledge(vault: Vault, knowledge: Knowledge) -> None:
     vault.write_text(p, knowledge.model_dump_json(indent=2) + "\n")
 
 
+def _load_json_records(path: str, label: str) -> list[dict]:
+    try:
+        value = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise QuironError(
+            "INVALID_INPUT",
+            f"{label} must be a readable JSON array: {path}",
+            exit_code=3,
+            details={"path": path},
+        ) from exc
+
+    if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
+        raise QuironError(
+            "INVALID_INPUT",
+            f"{label} must be a JSON array of objects: {path}",
+            exit_code=3,
+            details={"path": path},
+        )
+    return value
+
+
 def cmd_seed(args: argparse.Namespace) -> int:
     vault = Vault(root=Path(args.vault).resolve())
     existing = load_knowledge(vault)
     result, report = seed_run(vault, existing=existing, deck=args.deck)
     save_knowledge(vault, result)
 
-    print(f"concepts: {report.concepts_created} created, {report.concepts_refreshed} refreshed")
+    print(
+        f"concepts: {report.concepts_created} created, {report.concepts_refreshed} refreshed"
+    )
     if report.concepts_orphaned:
         print(f"orphaned (kept, not deleted): {len(report.concepts_orphaned)}")
         for s in report.concepts_orphaned:
@@ -52,7 +77,9 @@ def cmd_seed(args: argparse.Namespace) -> int:
         for path, ref in report.cards_unresolved:
             print(f"  - {path} -> {ref}")
     if report.doubts_unlinked:
-        print(f"doubts not mechanically linked (need manual attach): {len(report.doubts_unlinked)}")
+        print(
+            f"doubts not mechanically linked (need manual attach): {len(report.doubts_unlinked)}"
+        )
         for path in report.doubts_unlinked:
             print(f"  - {path}")
     if report.headings_skipped:
@@ -108,6 +135,8 @@ def cmd_today(args: argparse.Namespace) -> int:
         knowledge,
         unresolved_refs=[(d["card"], d["ref"]) for d in doctor.dangling_refs],
         contradictions=contradictions,
+        vault_path=vault.root,
+        deck=args.deck,
     )
     print(render(lines))
     return 0
@@ -119,12 +148,30 @@ def cmd_cards(args: argparse.Namespace) -> int:
 
     if args.list_gaps:
         gaps = coverage.coverage_gap(knowledge)
+        if args.json:
+            print(
+                json.dumps(
+                    [
+                        {"slug": c.slug, "title": c.title, "notes_ref": c.notes_ref}
+                        for c in gaps
+                    ],
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
         print(f"{len(gaps)} needed concepts with no cards")
         for c in gaps:
             print(f"  - {c.slug} ({c.notes_ref})")
         return 0
 
     if args.decide:
+        if args.json:
+            raise QuironError(
+                "INTERACTIVE_JSON_UNSUPPORTED",
+                "--decide is interactive and cannot be combined with --json",
+                exit_code=2,
+            )
         report = coverage.decide(knowledge)
         save_knowledge(vault, knowledge)
         print(f"decided: {report.decided}")
@@ -176,13 +223,26 @@ def cmd_cards(args: argparse.Namespace) -> int:
         return 0
 
     if args.record_review:
-        raw = json.loads(Path(args.record_review).read_text(encoding="utf-8"))
-        proposals = [audit.ReviewProposal(**p) for p in raw]
+        raw = _load_json_records(args.record_review, "review proposals")
+        try:
+            proposals = [audit.ReviewProposal(**p) for p in raw]
+        except TypeError as exc:
+            raise QuironError(
+                "INVALID_INPUT",
+                f"review proposals have an invalid shape: {args.record_review}",
+                exit_code=3,
+                details={"path": args.record_review},
+            ) from exc
         review_report = audit.record_review(knowledge, proposals)
         save_knowledge(vault, knowledge)
+        if args.json:
+            print(json.dumps(asdict(review_report), ensure_ascii=False, indent=2))
+            return 0
         print(f"recorded: {len(review_report.recorded)}")
         if review_report.skipped_no_card_ref:
-            print(f"skipped (no matching card_ref): {len(review_report.skipped_no_card_ref)}")
+            print(
+                f"skipped (no matching card_ref): {len(review_report.skipped_no_card_ref)}"
+            )
             for path in review_report.skipped_no_card_ref:
                 print(f"  - {path}")
         return 0
@@ -207,10 +267,21 @@ def cmd_cards(args: argparse.Namespace) -> int:
         return 0
 
     if args.set_policy:
-        raw = json.loads(Path(args.set_policy).read_text(encoding="utf-8"))
-        decisions = [coverage.PolicyDecision(**d) for d in raw]
+        raw = _load_json_records(args.set_policy, "policy decisions")
+        try:
+            decisions = [coverage.PolicyDecision(**d) for d in raw]
+        except TypeError as exc:
+            raise QuironError(
+                "INVALID_INPUT",
+                f"policy decisions have an invalid shape: {args.set_policy}",
+                exit_code=3,
+                details={"path": args.set_policy},
+            ) from exc
         policy_report = coverage.set_policy(knowledge, decisions)
         save_knowledge(vault, knowledge)
+        if args.json:
+            print(json.dumps(asdict(policy_report), ensure_ascii=False, indent=2))
+            return 0
         print(f"decided: {len(policy_report.decided)}")
         if policy_report.skipped_unknown_slug:
             print(f"skipped (unknown slug): {len(policy_report.skipped_unknown_slug)}")
@@ -218,11 +289,12 @@ def cmd_cards(args: argparse.Namespace) -> int:
                 print(f"  - {slug}")
         return 0
 
-    print(
-        "nothing to do — pass --decide, --list-gaps, --list-undecided, --audit, "
-        "--record-review, or --set-policy"
+    raise QuironError(
+        "NO_ACTION",
+        "pass exactly one cards action: --decide, --list-gaps, --list-undecided, "
+        "--audit, --record-review, or --set-policy",
+        exit_code=2,
     )
-    return 1
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
@@ -250,7 +322,9 @@ def cmd_migrate(args: argparse.Namespace) -> int:
     vault_path = Path(args.vault).resolve()
     is_existing = (vault_path / "00-Meta" / "knowledge.json").exists()
     if args.dry_run is None:
-        dry_run = is_existing  # existing vault: safe by default; new vault: nothing to lose
+        dry_run = (
+            is_existing  # existing vault: safe by default; new vault: nothing to lose
+        )
     else:
         dry_run = args.dry_run.lower() != "false"
 
@@ -269,11 +343,15 @@ def cmd_migrate(args: argparse.Namespace) -> int:
 
     if report.seed_report:
         sr = report.seed_report
-        print(f"concepts: {sr.concepts_created} created, {sr.concepts_refreshed} refreshed")
+        print(
+            f"concepts: {sr.concepts_created} created, {sr.concepts_refreshed} refreshed"
+        )
     if report.doctor_report:
         dr = report.doctor_report
-        print(f"doctor: {dr.concept_count} concepts, {len(dr.dangling_refs)} dangling refs, "
-              f"{len(dr.orphaned_concepts)} orphaned, {len(dr.unlinked_doubts)} unlinked doubts")
+        print(
+            f"doctor: {dr.concept_count} concepts, {len(dr.dangling_refs)} dangling refs, "
+            f"{len(dr.orphaned_concepts)} orphaned, {len(dr.unlinked_doubts)} unlinked doubts"
+        )
     return 0
 
 
@@ -304,7 +382,12 @@ def cmd_next(args: argparse.Namespace) -> int:
         print(
             json.dumps(
                 [
-                    {"slug": c.slug, "title": c.title, "reason": c.reason, "detail": c.detail}
+                    {
+                        "slug": c.slug,
+                        "title": c.title,
+                        "reason": c.reason,
+                        "detail": c.detail,
+                    }
                     for c in result
                 ],
                 ensure_ascii=False,
@@ -376,48 +459,108 @@ def build_parser() -> argparse.ArgumentParser:
         ("seed", cmd_seed),
     ):
         sp = sub.add_parser(name)
-        sp.add_argument("--vault", required=True, help="path to the Obsidian vault root")
-        sp.add_argument("--deck", default="karpathy", help="live quiz-bank deck folder under 04-Quiz-Bank/")
+        sp.add_argument(
+            "--vault", required=True, help="path to the Obsidian vault root"
+        )
+        sp.add_argument(
+            "--deck",
+            default="karpathy",
+            help="live quiz-bank deck folder under 04-Quiz-Bank/",
+        )
         sp.set_defaults(func=fn)
 
     sp = sub.add_parser("doctor")
     sp.add_argument("--vault", required=True)
-    sp.add_argument("--deck", default="karpathy", help="live quiz-bank deck folder under 04-Quiz-Bank/")
+    sp.add_argument(
+        "--deck",
+        default="karpathy",
+        help="live quiz-bank deck folder under 04-Quiz-Bank/",
+    )
     sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_doctor)
 
     sp = sub.add_parser("inbox")
     sp.add_argument("--vault", required=True)
-    sp.add_argument("--apply", required=True, help="path to a JSON list of classified proposals")
+    sp.add_argument(
+        "--apply", required=True, help="path to a JSON list of classified proposals"
+    )
     sp.set_defaults(func=cmd_inbox)
 
     sp = sub.add_parser("cards")
     sp.add_argument("--vault", required=True)
-    sp.add_argument("--deck", default="karpathy", help="live quiz-bank deck folder under 04-Quiz-Bank/ (used by --audit)")
-    sp.add_argument("--decide", action="store_true", help="interactive retention-decision walker")
-    sp.add_argument("--list-gaps", action="store_true", help="list needed-but-empty concepts")
-    sp.add_argument("--list-undecided", action="store_true", help="list concepts with no retention decision yet, non-interactively")
-    sp.add_argument("--audit", action="store_true", help="read-only card-quality report (layers 1+2)")
-    sp.add_argument("--record-review", metavar="FILE", help="apply a JSON list of ReviewProposal after harvard-reviewer ran")
-    sp.add_argument("--set-policy", metavar="FILE", help="apply a JSON list of PolicyDecision — non-interactive counterpart to --decide, for a skill/agent to drive")
-    sp.add_argument("--json", action="store_true", help="with --audit or --list-undecided, print JSON instead of a text summary")
+    sp.add_argument(
+        "--deck",
+        default="karpathy",
+        help="live quiz-bank deck folder under 04-Quiz-Bank/ (used by --audit)",
+    )
+    actions = sp.add_mutually_exclusive_group()
+    actions.add_argument(
+        "--decide", action="store_true", help="interactive retention-decision walker"
+    )
+    actions.add_argument(
+        "--list-gaps", action="store_true", help="list needed-but-empty concepts"
+    )
+    actions.add_argument(
+        "--list-undecided",
+        action="store_true",
+        help="list concepts with no retention decision yet, non-interactively",
+    )
+    actions.add_argument(
+        "--audit",
+        action="store_true",
+        help="read-only card-quality report (layers 1+2)",
+    )
+    actions.add_argument(
+        "--record-review",
+        metavar="FILE",
+        help="apply a JSON list of ReviewProposal after harvard-reviewer ran",
+    )
+    actions.add_argument(
+        "--set-policy",
+        metavar="FILE",
+        help="apply a JSON list of PolicyDecision — non-interactive counterpart to --decide, for a skill/agent to drive",
+    )
+    sp.add_argument(
+        "--json",
+        action="store_true",
+        help="print machine-readable JSON instead of a text summary",
+    )
     sp.set_defaults(func=cmd_cards)
 
     sp = sub.add_parser("evidence")
     sp.add_argument("--vault", required=True)
-    sp.add_argument("--add", action="store_true", required=True, help="only action today; explicit flag leaves room for --list later")
-    sp.add_argument("--card", required=True, help="card path relative to the vault root")
-    sp.add_argument("--kind", required=True, choices=["encountered", "explained", "applied"])
+    sp.add_argument(
+        "--add",
+        action="store_true",
+        required=True,
+        help="only action today; explicit flag leaves room for --list later",
+    )
+    sp.add_argument(
+        "--card", required=True, help="card path relative to the vault root"
+    )
+    sp.add_argument(
+        "--kind", required=True, choices=["encountered", "explained", "applied"]
+    )
     sp.add_argument("--ref", required=True)
     sp.add_argument("--scope")
     sp.set_defaults(func=cmd_evidence)
 
     sp = sub.add_parser("migrate")
-    sp.add_argument("--vault", required=True, help="path to the Obsidian vault root (created if missing)")
-    sp.add_argument("--deck", default="karpathy", help="live quiz-bank deck folder under 04-Quiz-Bank/")
+    sp.add_argument(
+        "--vault",
+        required=True,
+        help="path to the Obsidian vault root (created if missing)",
+    )
+    sp.add_argument(
+        "--deck",
+        default="karpathy",
+        help="live quiz-bank deck folder under 04-Quiz-Bank/",
+    )
     sp.add_argument("--subject-expertise", default="", dest="subject_expertise")
     sp.add_argument("--deck-path", default="04-Quiz-Bank/*.md", dest="deck_path")
-    sp.add_argument("--topic-notes-path", default="02-Topics/*.md", dest="topic_notes_path")
+    sp.add_argument(
+        "--topic-notes-path", default="02-Topics/*.md", dest="topic_notes_path"
+    )
     sp.add_argument(
         "--resync-command",
         default="not applicable — no live per-card Anki-synced deck for this vault yet",
@@ -458,7 +601,20 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = build_parser()
     args = parser.parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except QuironError as exc:
+        if getattr(args, "json", False):
+            print(
+                json.dumps(
+                    {"status": "error", **exc.as_dict()},
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        else:
+            print(f"{exc.code}: {exc.message}", file=sys.stderr)
+        return exc.exit_code
 
 
 if __name__ == "__main__":

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
+from pathlib import Path
+from shlex import quote
 
 from . import coverage
 from .capture import load_inbox
@@ -47,9 +49,18 @@ def build_report(
     unresolved_refs: list[tuple[str, str]] | None = None,
     today: date | None = None,
     contradictions: list[Contradiction] | None = None,
+    vault_path: Path | str | None = None,
+    deck: str = "karpathy",
 ) -> list[Line]:
     today = today or date.today()
     lines: list[Line] = []
+
+    def command(name: str, *args: str) -> str:
+        if vault_path is None:
+            return "quiron " + " ".join((name, *args))
+        return "quiron " + " ".join(
+            (name, "--vault", quote(str(vault_path)), "--deck", quote(deck), *args)
+        )
 
     unresolved_refs = unresolved_refs or []
     if unresolved_refs:
@@ -57,7 +68,7 @@ def build_report(
             Line(
                 tier="red",
                 text=f"{len(unresolved_refs)} tarjetas con Ref: irresoluble",
-                action="quiron doctor",
+                action=command("doctor"),
             )
         )
 
@@ -102,8 +113,8 @@ def build_report(
         lines.append(
             Line(
                 tier="yellow",
-                text=f"{len(gaps)} conceptos \"needed\" sin tarjetas",
-                action="quiron cards --list-gaps",
+                text=f'{len(gaps)} conceptos "needed" sin tarjetas',
+                action=command("cards", "--list-gaps"),
             )
         )
 
@@ -113,7 +124,7 @@ def build_report(
             Line(
                 tier="yellow",
                 text=f"{len(pending)} conceptos sin decision de retencion",
-                action="quiron cards --decide",
+                action=command("cards", "--decide"),
             )
         )
 
@@ -122,14 +133,17 @@ def build_report(
             Line(
                 tier="yellow",
                 text=(
-                    f'{c.concept.title} — factor {c.factor} en Anki, '
-                    f'understanding: encountered (nunca lo explicaste)'
+                    f"{c.concept.title} — factor {c.factor} en Anki, "
+                    f"understanding: encountered (nunca lo explicaste)"
                 ),
             )
         )
 
     lines.append(
-        Line(tier="white", text=f"{open_doubts} dudas abiertas · {resolved_doubts} resueltas")
+        Line(
+            tier="white",
+            text=f"{open_doubts} dudas abiertas · {resolved_doubts} resueltas",
+        )
     )
 
     return lines
