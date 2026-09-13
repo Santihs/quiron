@@ -1,3 +1,5 @@
+from datetime import date
+
 from quiron.schema import CardRef, Concept, Evidence, Knowledge
 from quiron.seed import seed
 from quiron.vault import Vault
@@ -77,7 +79,9 @@ def test_seed_never_overwrites_evidence_doubts_card_policy(vault):
     result1, _ = seed(vault)
     slug = "coding-the-matrix-inner-product--8-3-orthogonality"
     c = next(c for c in result1.concepts if c.slug == slug)
-    c.evidence.append(Evidence(kind="applied", at="2026-08-25", ref="scripts/pca.py"))
+    c.evidence.append(
+        Evidence(kind="applied", at=date(2026, 8, 25), ref="scripts/pca.py")
+    )
     c.card_policy = "needed"
     c.declined_reason = None
 
@@ -94,7 +98,7 @@ def test_seed_preserves_card_quality_by_path_on_refresh(vault):
     for cr in c.card_refs:
         if cr.path == "04-Quiz-Bank/karpathy/orthogonality-exact.md":
             cr.quality = "ok"
-            cr.reviewed_at = "2026-08-20"
+            cr.reviewed_at = date(2026, 8, 20)
 
     result2, _ = seed(vault, existing=result1)
     c2 = next(c for c in result2.concepts if c.slug == slug)

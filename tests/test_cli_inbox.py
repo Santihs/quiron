@@ -48,6 +48,7 @@ def test_inbox_apply_opens_doubt_and_marks_processed(tmp_path):
     assert rc == 0
 
     k = load_knowledge(v)
+    assert k is not None
     c = next(c for c in k.concepts if c.slug == "x--y")
     assert len(c.doubts) == 1
     assert c.doubts[0].status == "open"
@@ -73,7 +74,9 @@ def test_inbox_apply_skip_leaves_unprocessed(tmp_path):
 
 def test_inbox_rejects_invalid_batch_without_writing(tmp_path, capsys):
     v = _setup(tmp_path)
-    before_knowledge = load_knowledge(v).model_dump()
+    knowledge = load_knowledge(v)
+    assert knowledge is not None
+    before_knowledge = knowledge.model_dump()
     before_inbox = v.read_text(v.path("00-Meta", "inbox.jsonl"))
     proposals_path = tmp_path / "proposals.json"
     proposals_path.write_text(
@@ -104,7 +107,9 @@ def test_inbox_rejects_invalid_batch_without_writing(tmp_path, capsys):
 
     assert rc == 3
     assert json.loads(capsys.readouterr().out)["code"] == "INVALID_INPUT"
-    assert load_knowledge(v).model_dump() == before_knowledge
+    knowledge = load_knowledge(v)
+    assert knowledge is not None
+    assert knowledge.model_dump() == before_knowledge
     assert v.read_text(v.path("00-Meta", "inbox.jsonl")) == before_inbox
 
 
@@ -165,6 +170,7 @@ def test_inbox_reapplying_capture_is_idempotent(tmp_path):
     assert main(["inbox", "--vault", str(tmp_path), "--apply", str(proposal)]) == 0
 
     k = load_knowledge(v)
+    assert k is not None
     assert len(k.concepts[0].doubts) == 1
 
 
@@ -189,4 +195,5 @@ def test_inbox_rejects_proposal_that_does_not_match_capture(tmp_path):
     assert main(["inbox", "--vault", str(tmp_path), "--apply", str(proposal)]) == 0
 
     k = load_knowledge(v)
+    assert k is not None
     assert k.concepts[0].doubts == []

@@ -40,6 +40,7 @@ def test_evidence_add_via_cli_persists(tmp_path, capsys):
     assert "eigenvectores" in out
 
     k = load_knowledge(v)
+    assert k is not None
     ev = k.concepts[0].evidence[0]
     assert ev.kind == "explained"
     assert ev.ref == "05-Explanations/eig.md"
@@ -71,6 +72,7 @@ def test_evidence_add_unmapped_card_does_not_write(tmp_path, capsys):
     assert "not mapped" in out
 
     k = load_knowledge(v)
+    assert k is not None
     assert k.concepts[0].evidence == []
 
 
@@ -109,5 +111,6 @@ def test_evidence_operation_is_idempotent_and_recorded_once(tmp_path):
     assert main(argv) == 0
 
     k = load_knowledge(v)
+    assert k is not None
     assert len(k.concepts[0].evidence) == 1
     assert len(load_history(v)) == 1

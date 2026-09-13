@@ -51,6 +51,7 @@ def build_report(
     contradictions: list[Contradiction] | None = None,
     vault_path: Path | str | None = None,
     deck: str = "karpathy",
+    anki_status: dict | None = None,
 ) -> list[Line]:
     today = today or date.today()
     lines: list[Line] = []
@@ -125,6 +126,14 @@ def build_report(
                 tier="yellow",
                 text=f"{len(pending)} conceptos sin decision de retencion",
                 action=command("cards", "--decide"),
+            )
+        )
+
+    if anki_status and anki_status.get("state") in {"unavailable", "degraded"}:
+        lines.append(
+            Line(
+                tier="yellow",
+                text=f"Anki {anki_status['state']}: {anki_status.get('message', 'status unavailable')}",
             )
         )
 

@@ -9,7 +9,9 @@ from quiron.vault import Vault
 def test_gap_is_yellow_never_red(tmp_path):
     v = Vault(root=tmp_path)
     (tmp_path / "00-Meta").mkdir()
-    k = Knowledge(concepts=[Concept(slug="a", title="A", unit="phase-0", card_policy="needed")])
+    k = Knowledge(
+        concepts=[Concept(slug="a", title="A", unit="phase-0", card_policy="needed")]
+    )
     lines = build_report(v, k)
     gap_lines = [l for l in lines if "needed" in l.text]
     assert len(gap_lines) == 1
@@ -58,7 +60,7 @@ def test_contradiction_line_is_yellow(tmp_path):
         slug="x",
         title="Eigenvectores",
         unit="phase-0",
-        evidence=[Evidence(kind="encountered", at="2026-08-01", ref="log.md")],
+        evidence=[Evidence(kind="encountered", at=date(2026, 8, 1), ref="log.md")],
     )
     contradiction = Contradiction(concept=c, note_id=1, factor=2600, interval=30)
     lines = build_report(v, k, contradictions=[contradiction])

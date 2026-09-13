@@ -15,6 +15,8 @@ from __future__ import annotations
 import difflib
 from dataclasses import dataclass, field
 from datetime import date
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from . import cardtext
 from .cardmap import card_to_concept
@@ -141,7 +143,8 @@ def lapses_signal(concept: Concept, lapses: int) -> str | None:
 def run(
     vault: Vault,
     knowledge: Knowledge,
-    notes_info: dict[int, dict] | None = None,
+    notes_info: Mapping[int, Mapping[str, Any] | Sequence[Mapping[str, Any]]]
+    | None = None,
     deck: str = "karpathy",
 ) -> AuditReport:
     """notes_info: noteId -> AnkiConnect cardsInfo dict, or None/{} if Anki
@@ -171,16 +174,26 @@ def run(
             note_id = read_note_id(vault, path)
             if note_id is None:
                 continue
-            card_info = notes_info.get(note_id)
-            if card_info is None:
+            raw_card_info = notes_info.get(note_id)
+            if raw_card_info is None:
                 continue
-            lapses = card_info.get("lapses")
-            if lapses is None:
+            card_infos = (
+                [raw_card_info] if isinstance(raw_card_info, Mapping) else raw_card_info
+            )
+            lapse_values: list[int] = []
+            for card in card_infos:
+                value = card.get("lapses")
+                if isinstance(value, int):
+                    lapse_values.append(value)
+            if not lapse_values:
                 continue
+            lapses = max(lapse_values)
             lapses_by_path[path] = lapses
 
             slug = card_to_slug.get(path)
-            concept = by_slug.get(slug) if slug else None
+            if slug is None:
+                continue
+            concept = by_slug.get(slug)
             if concept is None:
                 continue
             signal = lapses_signal(concept, lapses)

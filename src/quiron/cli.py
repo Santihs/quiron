@@ -25,7 +25,7 @@ from .inputs import (
     validate_record,
 )
 from .migrate import run_migrate
-from .schema import Knowledge
+from .schema import Knowledge, load_knowledge_json
 from .seed import seed as seed_run
 from .store import vault_lock
 from .today import build_report, render
@@ -51,7 +51,7 @@ def load_knowledge(vault: Vault) -> Knowledge | None:
     if not p.exists():
         return None
     try:
-        return Knowledge.model_validate_json(vault.read_text(p))
+        return load_knowledge_json(vault.read_text(p))
     except ValueError as exc:
         raise QuironError(
             "INVALID_KNOWLEDGE",
@@ -141,11 +141,24 @@ def cmd_today(args: argparse.Namespace) -> int:
 
     contradictions = []
     note_id_to_slug = recall.collect_note_ids(vault, knowledge)
+    anki_status = {"state": "not_needed"}
     if note_id_to_slug:
         try:
-            notes_info = ankiconnect.cards_info_by_note_id(list(note_id_to_slug))
-        except ankiconnect.AnkiConnectError:
+            notes_info = ankiconnect.cards_by_note_id(list(note_id_to_slug))
+            if len(notes_info) < len(note_id_to_slug):
+                anki_status = {
+                    "state": "degraded",
+                    "message": "some Anki notes had no card data",
+                }
+            else:
+                anki_status = {"state": "connected"}
+        except ankiconnect.AnkiConnectError as exc:
             notes_info = {}
+            anki_status = {
+                "state": "unavailable",
+                "message": str(exc),
+                "retryable": exc.retryable,
+            }
         # cards_info_by_note_id keys by note id already; recall expects the
         # same shape (noteId -> cardsInfo dict).
         contradictions = recall.cross_check(knowledge, note_id_to_slug, notes_info)
@@ -157,6 +170,7 @@ def cmd_today(args: argparse.Namespace) -> int:
         contradictions=contradictions,
         vault_path=vault.root,
         deck=args.deck,
+        anki_status=anki_status,
     )
     print(render(lines))
     return 0
@@ -203,11 +217,24 @@ def cmd_cards(args: argparse.Namespace) -> int:
     if args.audit:
         note_id_to_slug = recall.collect_note_ids(vault, knowledge)
         notes_info = {}
+        anki_status = {"state": "not_needed"}
         if note_id_to_slug:
             try:
-                notes_info = ankiconnect.cards_info_by_note_id(list(note_id_to_slug))
-            except ankiconnect.AnkiConnectError:
+                notes_info = ankiconnect.cards_by_note_id(list(note_id_to_slug))
+                if len(notes_info) < len(note_id_to_slug):
+                    anki_status = {
+                        "state": "degraded",
+                        "message": "some Anki notes had no card data",
+                    }
+                else:
+                    anki_status = {"state": "connected"}
+            except ankiconnect.AnkiConnectError as exc:
                 notes_info = {}
+                anki_status = {
+                    "state": "unavailable",
+                    "message": str(exc),
+                    "retryable": exc.retryable,
+                }
         report = audit.run(vault, knowledge, notes_info=notes_info, deck=args.deck)
 
         result = {
@@ -230,6 +257,7 @@ def cmd_cards(args: argparse.Namespace) -> int:
                 }
                 for i in report.informational
             ],
+            "anki": anki_status,
         }
         if args.json:
             print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -357,6 +385,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         print(f"unlinked doubts: {len(report.unlinked_doubts)}")
         for d in report.unlinked_doubts:
             print(f"  - {d}")
+        print(f"anki: {report.anki_status.get('state', 'unknown')}")
     return 0
 
 
@@ -706,8 +735,9 @@ def main(argv: list[str] | None = None) -> int:
     # the emoji tier markers `today` prints — force UTF-8 regardless of
     # locale, matching every other read/write in this codebase.
     for stream in (sys.stdout, sys.stderr):
-        if hasattr(stream, "reconfigure"):
-            stream.reconfigure(encoding="utf-8")
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            reconfigure(encoding="utf-8")
 
     parser = build_parser()
     args = parser.parse_args(argv)

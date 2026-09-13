@@ -14,11 +14,11 @@ from quiron.inputs import (
 def test_proposal_input_parses_dates_and_strips_strings():
     proposal = ProposalInput(
         capture_id=" capture-1 ",
-        kind=" aplicado ",
+        kind=" aplicado ",  # pyright: ignore[reportArgumentType]
         target_slug=" concept ",
         text=" ejercicio ",
         ref=" scripts/example.py ",
-        at="2026-09-12",
+        at="2026-09-12",  # pyright: ignore[reportArgumentType]
     )
 
     assert proposal.capture_id == "capture-1"

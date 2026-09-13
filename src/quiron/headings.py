@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
+from collections.abc import Sequence
 from typing import Literal
 
 HEADING_RE = re.compile(r"^(#{2,3})\s+(.+?)\s*$")
@@ -133,7 +134,9 @@ def parse_ref(ref_content: str) -> tuple[str, str | None]:
     return path, anchor
 
 
-def resolve_anchor_detailed(anchor: str, headings: list[Heading]) -> AnchorResolution:
+def resolve_anchor_detailed(
+    anchor: str, headings: Sequence[Heading]
+) -> AnchorResolution:
     """Resolve exact, unique-prefix, ambiguous, and unresolved anchors."""
     anchor_n = anchor.strip()
     exact = tuple(h for h in headings if h.text.strip() == anchor_n)
@@ -150,7 +153,7 @@ def resolve_anchor_detailed(anchor: str, headings: list[Heading]) -> AnchorResol
     return AnchorResolution(status="unresolved")
 
 
-def resolve_anchor(anchor: str, headings: list[Heading]) -> Heading | None:
+def resolve_anchor(anchor: str, headings: Sequence[Heading]) -> Heading | None:
     """Return a uniquely resolved exact or prefix anchor."""
     result = resolve_anchor_detailed(anchor, headings)
     return result.heading

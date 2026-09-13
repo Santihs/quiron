@@ -8,7 +8,7 @@ import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING, Any, Iterator, cast
 
 if TYPE_CHECKING:
     from .vault import Vault
@@ -115,10 +115,11 @@ def _lock_windows(handle, timeout: float) -> None:
 def _lock_posix(handle, timeout: float) -> None:
     import fcntl
 
+    fcntl_api = cast(Any, fcntl)
     deadline = time.monotonic() + timeout
     while True:
         try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl_api.flock(handle.fileno(), fcntl_api.LOCK_EX | fcntl_api.LOCK_NB)
             return
         except BlockingIOError:
             if time.monotonic() >= deadline:

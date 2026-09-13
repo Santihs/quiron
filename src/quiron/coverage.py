@@ -8,14 +8,16 @@ quiron never infers it.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, Literal
 
 from .schema import Concept, Knowledge
 
 
 def coverage_gap(knowledge: Knowledge) -> list[Concept]:
     """Concepts you decided need cards, but don't have any yet."""
-    return [c for c in knowledge.concepts if c.card_policy == "needed" and not c.card_refs]
+    return [
+        c for c in knowledge.concepts if c.card_policy == "needed" and not c.card_refs
+    ]
 
 
 def undecided(knowledge: Knowledge) -> list[Concept]:
@@ -31,7 +33,7 @@ class PolicyDecision:
     it has judgment, handed to a deterministic apply function."""
 
     slug: str
-    card_policy: str  # "needed" | "declined"
+    card_policy: Literal["needed", "declined"]
     declined_reason: str | None = None
 
 
@@ -41,7 +43,9 @@ class SetPolicyReport:
     skipped_unknown_slug: list[str] = field(default_factory=list)
 
 
-def set_policy(knowledge: Knowledge, decisions: list[PolicyDecision]) -> SetPolicyReport:
+def set_policy(
+    knowledge: Knowledge, decisions: list[PolicyDecision]
+) -> SetPolicyReport:
     """Non-interactive counterpart to decide() — applies a batch of already-made
     decisions instead of prompting for them. Exists so a Claude Code skill can
     drive this instead of only a human typing into a real terminal (decide()'s

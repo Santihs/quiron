@@ -40,6 +40,7 @@ def test_decide_via_cli_persists(tmp_path, monkeypatch):
     assert rc == 0
 
     k = load_knowledge(v)
+    assert k is not None
     assert k.concepts[0].card_policy == "needed"
 
 
@@ -139,6 +140,7 @@ def test_record_review_via_cli_persists(tmp_path):
     assert rc == 0
 
     k = load_knowledge(v)
+    assert k is not None
     cr = k.concepts[0].card_refs[0]
     assert cr.quality == "ok"
     assert cr.reviewer_verdict == "fine"
@@ -198,6 +200,7 @@ def test_set_policy_via_cli_persists(tmp_path):
     assert rc == 0
 
     k = load_knowledge(v)
+    assert k is not None
     by_slug = {c.slug: c for c in k.concepts}
     assert by_slug["a"].card_policy == "needed"
     assert by_slug["b"].card_policy == "declined"

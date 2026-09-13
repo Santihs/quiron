@@ -135,8 +135,10 @@ def test_end_to_end_101_style_prefix_resolution(vault):
 
     card_body = _body(vault, "04-Quiz-Bank", "karpathy", "annihilator-definicion.md")
     ref = extract_ref(card_body)
+    assert ref is not None
     path, anchor = parse_ref(ref)
     assert path == "02-Topics/Coding-the-Matrix-Inner-Product.md"
+    assert anchor is not None
     resolved = resolve_anchor(anchor, headings)
     assert resolved is not None
     assert resolved.text == "12. El Annihilator (6.5)"
@@ -148,7 +150,9 @@ def test_end_to_end_exact_resolution(vault):
 
     card_body = _body(vault, "04-Quiz-Bank", "karpathy", "orthogonality-exact.md")
     ref = extract_ref(card_body)
+    assert ref is not None
     path, anchor = parse_ref(ref)
+    assert anchor is not None
     resolved = resolve_anchor(anchor, headings)
     assert resolved is not None
     assert resolved.text == "8.3 — Orthogonality"
@@ -160,6 +164,7 @@ def test_end_to_end_unresolvable(vault):
 
     card_body = _body(vault, "04-Quiz-Bank", "karpathy", "unresolvable-ref.md")
     ref = extract_ref(card_body)
+    assert ref is not None
     path, anchor = parse_ref(ref)
     resolved = resolve_anchor(anchor, headings) if anchor else None
     assert resolved is None

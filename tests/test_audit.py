@@ -1,3 +1,5 @@
+from datetime import date
+
 from quiron.audit import lapses_signal, layer1_flags, run
 from quiron.schema import CardRef, Concept, Evidence, Knowledge
 from quiron.vault import Vault, read_frontmatter
@@ -93,7 +95,7 @@ def test_lapses_signal_suspect_when_understood():
         slug="x",
         title="X",
         unit="phase-0",
-        evidence=[Evidence(kind="applied", at="2026-08-01", ref="scripts/x.py")],
+        evidence=[Evidence(kind="applied", at=date(2026, 8, 1), ref="scripts/x.py")],
     )
     assert lapses_signal(c, 7) == "suspect_card"
 
@@ -103,7 +105,7 @@ def test_lapses_signal_probably_dont_know_when_only_encountered():
         slug="x",
         title="X",
         unit="phase-0",
-        evidence=[Evidence(kind="encountered", at="2026-08-01", ref="log.md")],
+        evidence=[Evidence(kind="encountered", at=date(2026, 8, 1), ref="log.md")],
     )
     assert lapses_signal(c, 7) == "probably_dont_know_it"
 
@@ -134,7 +136,7 @@ def test_run_suspect_card_becomes_candidate_not_informational(tmp_path):
                 slug="x",
                 title="X",
                 unit="phase-0",
-                evidence=[Evidence(kind="applied", at="2026-08-01", ref="s.py")],
+                evidence=[Evidence(kind="applied", at=date(2026, 8, 1), ref="s.py")],
                 card_refs=[CardRef(path="04-Quiz-Bank/karpathy/a.md")],
             )
         ]
@@ -182,7 +184,9 @@ def test_run_probably_dont_know_is_informational_not_candidate(tmp_path):
                 slug="x",
                 title="X",
                 unit="phase-0",
-                evidence=[Evidence(kind="encountered", at="2026-08-01", ref="log.md")],
+                evidence=[
+                    Evidence(kind="encountered", at=date(2026, 8, 1), ref="log.md")
+                ],
                 card_refs=[CardRef(path="04-Quiz-Bank/karpathy/a.md")],
             )
         ]

@@ -18,7 +18,7 @@ import copier
 from .doctor import DoctorReport
 from .doctor import run as doctor_run
 from .errors import QuironError
-from .schema import Knowledge
+from .schema import Knowledge, load_knowledge_json
 from .seed import SeedReport
 from .seed import seed as seed_run
 from .store import vault_lock
@@ -60,7 +60,7 @@ def _run_migrate(
     knowledge_path = vault_path / "00-Meta" / "knowledge.json"
     if knowledge_path.exists():
         try:
-            Knowledge.model_validate_json(knowledge_path.read_text(encoding="utf-8"))
+            load_knowledge_json(knowledge_path.read_text(encoding="utf-8"))
         except ValueError as exc:
             raise QuironError(
                 "INVALID_KNOWLEDGE",
@@ -87,7 +87,7 @@ def _run_migrate(
     existing = None
     knowledge_path = vault.path("00-Meta", "knowledge.json")
     if knowledge_path.exists():
-        existing = Knowledge.model_validate_json(vault.read_text(knowledge_path))
+        existing = load_knowledge_json(vault.read_text(knowledge_path))
     result, seed_report = seed_run(vault, existing=existing, deck=deck)
     vault.write_text(knowledge_path, result.model_dump_json(indent=2) + "\n")
     report.seed_report = seed_report

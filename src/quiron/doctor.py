@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 
+from . import ankiconnect
 from .cardmap import duplicate_card_paths
 from .errors import QuironError
 from .schema import Knowledge
@@ -29,6 +30,7 @@ class DoctorReport:
     unknown_prerequisites: list[str] = field(default_factory=list)
     duplicate_card_paths: dict[str, list[str]] = field(default_factory=dict)
     ambiguous_refs: list[dict] = field(default_factory=list)
+    anki_status: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -93,4 +95,5 @@ def run(
             {"card": path, "ref": ref, "lines": lines}
             for path, ref, lines in seed_report.cards_ambiguous
         ],
+        anki_status=ankiconnect.status(),
     )

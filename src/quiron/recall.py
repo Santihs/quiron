@@ -14,6 +14,8 @@ always yellow, never a verdict on the card itself.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from .schema import Concept, Knowledge
 from .vault import Vault, read_note_id
@@ -41,7 +43,11 @@ def collect_note_ids(vault: Vault, knowledge: Knowledge) -> dict[int, str]:
     return out
 
 
-def cross_check(knowledge: Knowledge, note_id_to_slug: dict[int, str], notes_info: dict[int, dict]) -> list[Contradiction]:
+def cross_check(
+    knowledge: Knowledge,
+    note_id_to_slug: dict[int, str],
+    notes_info: Mapping[int, Mapping[str, Any] | Sequence[Mapping[str, Any]]],
+) -> list[Contradiction]:
     """notes_info: noteId -> AnkiConnect cardsInfo dict, as returned by
     ankiconnect.cards_info_by_note_id. Empty/missing dict means Anki was
     unreachable — callers should pass {} rather than raise, and this
@@ -50,7 +56,7 @@ def cross_check(knowledge: Knowledge, note_id_to_slug: dict[int, str], notes_inf
     by_slug = {c.slug: c for c in knowledge.concepts}
     out: list[Contradiction] = []
 
-    for note_id, card in notes_info.items():
+    for note_id, raw_cards in notes_info.items():
         slug = note_id_to_slug.get(note_id)
         if slug is None:
             continue
@@ -60,13 +66,22 @@ def cross_check(knowledge: Knowledge, note_id_to_slug: dict[int, str], notes_inf
         if concept.understanding != "encountered":
             continue
 
-        factor = card.get("factor")
-        interval = card.get("interval")
-        if factor is None or interval is None:
+        cards = [raw_cards] if isinstance(raw_cards, Mapping) else raw_cards
+        candidates = [
+            card
+            for card in cards
+            if card.get("factor") is not None and card.get("interval") is not None
+        ]
+        if not candidates:
             continue
+        card = max(candidates, key=lambda value: (value["factor"], value["interval"]))
+        factor = card["factor"]
+        interval = card["interval"]
         if factor >= FACTOR_THRESHOLD and interval >= INTERVAL_THRESHOLD:
             out.append(
-                Contradiction(concept=concept, note_id=note_id, factor=factor, interval=interval)
+                Contradiction(
+                    concept=concept, note_id=note_id, factor=factor, interval=interval
+                )
             )
 
     return out

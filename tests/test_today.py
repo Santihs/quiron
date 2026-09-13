@@ -27,7 +27,18 @@ def test_unprocessed_inbox_is_yellow_never_red(tmp_path):
 
     v = Vault(root=tmp_path)
     (tmp_path / "00-Meta").mkdir()
-    write_inbox(v, [{"id": "a", "kind": "duda", "text": "x", "source_log": "l.md", "processed": False}])
+    write_inbox(
+        v,
+        [
+            {
+                "id": "a",
+                "kind": "duda",
+                "text": "x",
+                "source_log": "l.md",
+                "processed": False,
+            }
+        ],
+    )
     k = Knowledge()
     lines = build_report(v, k)
     inbox_lines = [l for l in lines if "capturas sin procesar" in l.text]
@@ -46,7 +57,11 @@ def test_neglected_doubt_is_red(tmp_path):
                 slug="x",
                 title="X",
                 unit="phase-0",
-                doubts=[Doubt(question="por que?", raised_at="2026-07-01", status="open")],
+                doubts=[
+                    Doubt(
+                        question="por que?", raised_at=date(2026, 7, 1), status="open"
+                    )
+                ],
             )
         ]
     )
@@ -66,7 +81,11 @@ def test_stale_doubt_is_yellow(tmp_path):
                 slug="x",
                 title="X",
                 unit="phase-0",
-                doubts=[Doubt(question="por que?", raised_at="2026-08-05", status="open")],
+                doubts=[
+                    Doubt(
+                        question="por que?", raised_at=date(2026, 8, 5), status="open"
+                    )
+                ],
             )
         ]
     )
@@ -91,6 +110,8 @@ def test_dangling_refs_render_red(tmp_path):
 def test_render_includes_symbol_and_action():
     from quiron.today import Line
 
-    out = render([Line(tier="yellow", text="4 capturas sin procesar", action="/quiron-inbox")])
+    out = render(
+        [Line(tier="yellow", text="4 capturas sin procesar", action="/quiron-inbox")]
+    )
     assert "4 capturas sin procesar" in out
     assert "/quiron-inbox" in out

@@ -1,4 +1,5 @@
 import json
+from datetime import date
 
 from quiron.cli import main, save_knowledge
 from quiron.schema import Concept, Doubt, Evidence, Knowledge, Source
@@ -16,7 +17,9 @@ def test_next_via_cli_json(tmp_path, capsys):
                     slug="x",
                     title="X",
                     unit="phase-0",
-                    doubts=[Doubt(question="q", raised_at="2026-07-01", status="open")],
+                    doubts=[
+                        Doubt(question="q", raised_at=date(2026, 7, 1), status="open")
+                    ],
                 )
             ]
         ),
@@ -50,7 +53,9 @@ def test_sources_via_cli_json(tmp_path, capsys):
                     title="X",
                     unit="phase-0",
                     sources=[Source(kind="book", ref="Axler cap.5")],
-                    evidence=[Evidence(kind="applied", at="2026-08-01", ref="x.py")],
+                    evidence=[
+                        Evidence(kind="applied", at=date(2026, 8, 1), ref="x.py")
+                    ],
                 )
             ]
         ),

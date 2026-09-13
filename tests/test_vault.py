@@ -19,6 +19,7 @@ def test_walk_markdown_missing_dir_returns_empty(vault):
 def test_frontmatter_inline_tags():
     raw = "---\ntags: [phase-0, math]\nstatus: seed\n---\nbody text\n"
     fm, body = split_frontmatter(raw)
+    assert fm is not None
     assert fm["tags"] == ["phase-0", "math"]
     assert body == "body text\n"
 
@@ -28,6 +29,7 @@ def test_frontmatter_block_tags():
         "---\ntags:\n  - repo-karpathy\n  - phase-0\nnoteId: 123\n---\nQ\n\n---\n\nA\n"
     )
     fm, body = split_frontmatter(raw)
+    assert fm is not None
     assert fm["tags"] == ["repo-karpathy", "phase-0"]
     assert fm["noteId"] == 123
 
@@ -37,12 +39,14 @@ def test_frontmatter_date_vs_date_resolved_both_readable(vault):
 
     p = vault.path("06-Doubts-Resolved", "span-de-vectores.md")
     fm, _ = read_frontmatter(vault, p)
+    assert fm is not None
     assert (
         fm["date_resolved"] == "2026-07-17" or str(fm["date_resolved"]) == "2026-07-17"
     )
 
     p2 = vault.path("06-Doubts-Resolved", "ortogonalidad-por-que-se-define-asi.md")
     fm2, _ = read_frontmatter(vault, p2)
+    assert fm2 is not None
     assert "date" in fm2 and "date_resolved" not in fm2
 
 
@@ -63,6 +67,7 @@ def test_utf8_em_dash_roundtrip(vault, tmp_path):
 def test_frontmatter_accepts_bom_and_crlf():
     fm, body = split_frontmatter("\ufeff---\r\ntags: [phase-0]\r\n---\r\nbody\r\n")
 
+    assert fm is not None
     assert fm["tags"] == ["phase-0"]
     assert body == "body\n"
 

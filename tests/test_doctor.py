@@ -1,4 +1,5 @@
 from datetime import date
+from unittest.mock import patch
 
 from quiron.doctor import run
 from quiron.schema import CardRef, Concept, Doubt, Evidence, Knowledge
@@ -55,6 +56,7 @@ def test_doctor_reports_missing_refs_and_unknown_prerequisites(tmp_path):
                         question="q",
                         raised_at=date(2026, 9, 1),
                         status="resolved",
+                        resolved_at=date(2026, 9, 12),
                         resolution_ref="06-Doubts-Resolved/missing.md",
                     )
                 ],
@@ -68,3 +70,12 @@ def test_doctor_reports_missing_refs_and_unknown_prerequisites(tmp_path):
     assert report.missing_evidence_refs == ["05-Projects/missing.py"]
     assert report.missing_resolution_refs == ["06-Doubts-Resolved/missing.md"]
     assert report.unknown_prerequisites == ["x:missing"]
+
+
+def test_doctor_reports_anki_status(tmp_path):
+    vault = Vault(root=tmp_path)
+
+    with patch("quiron.doctor.ankiconnect.status", return_value={"state": "connected"}):
+        report = run(vault)
+
+    assert report.anki_status == {"state": "connected"}

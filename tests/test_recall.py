@@ -1,3 +1,5 @@
+from datetime import date
+
 from quiron.recall import collect_note_ids, cross_check
 from quiron.schema import CardRef, Concept, Evidence, Knowledge
 from quiron.vault import Vault
@@ -37,7 +39,9 @@ def test_cross_check_flags_encountered_with_strong_recall():
                 slug="x",
                 title="X",
                 unit="phase-0",
-                evidence=[Evidence(kind="encountered", at="2026-08-01", ref="log.md")],
+                evidence=[
+                    Evidence(kind="encountered", at=date(2026, 8, 1), ref="log.md")
+                ],
             )
         ]
     )
@@ -56,7 +60,9 @@ def test_cross_check_ignores_applied_concept():
                 slug="x",
                 title="X",
                 unit="phase-0",
-                evidence=[Evidence(kind="applied", at="2026-08-01", ref="scripts/x.py")],
+                evidence=[
+                    Evidence(kind="applied", at=date(2026, 8, 1), ref="scripts/x.py")
+                ],
             )
         ]
     )
@@ -71,7 +77,9 @@ def test_cross_check_ignores_below_threshold():
                 slug="x",
                 title="X",
                 unit="phase-0",
-                evidence=[Evidence(kind="encountered", at="2026-08-01", ref="log.md")],
+                evidence=[
+                    Evidence(kind="encountered", at=date(2026, 8, 1), ref="log.md")
+                ],
             )
         ]
     )
@@ -83,3 +91,27 @@ def test_cross_check_empty_notes_info_never_crashes():
     k = Knowledge(concepts=[Concept(slug="x", title="X", unit="phase-0")])
     result = cross_check(k, {111: "x"}, {})
     assert result == []
+
+
+def test_cross_check_handles_multiple_cards_for_one_note():
+    k = Knowledge(
+        concepts=[
+            Concept(
+                slug="x",
+                title="X",
+                unit="phase-0",
+                evidence=[
+                    Evidence(kind="encountered", at=date(2026, 8, 1), ref="log.md")
+                ],
+            )
+        ]
+    )
+
+    result = cross_check(
+        k,
+        {111: "x"},
+        {111: [{"factor": 1000, "interval": 4}, {"factor": 2600, "interval": 30}]},
+    )
+
+    assert len(result) == 1
+    assert result[0].factor == 2600

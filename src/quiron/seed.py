@@ -8,6 +8,7 @@ card_policy). Only refreshes fields derived from the source material
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 
 from .headings import (
     Heading,
@@ -54,6 +55,14 @@ def _unit_from_frontmatter(fm: dict) -> str:
     if tags:
         return str(tags[0])
     return "unknown"
+
+
+def _as_date(value: object, default: date) -> date:
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        return date.fromisoformat(value)
+    return default
 
 
 def _index_topic_notes(vault: Vault, report: SeedReport):
@@ -248,9 +257,9 @@ def seed(
         target.doubts.append(
             Doubt(
                 question=d["question"],
-                raised_at=d["resolved_at"] or "2026-01-01",
+                raised_at=_as_date(d["resolved_at"], date(2026, 1, 1)),
                 status="resolved",
-                resolved_at=d["resolved_at"],
+                resolved_at=_as_date(d["resolved_at"], date(2026, 1, 1)),
                 resolution_ref=d["path"],
             )
         )

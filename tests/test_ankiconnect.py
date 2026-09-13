@@ -15,7 +15,8 @@ def _mock_response(body: dict):
 
 def test_invoke_sends_correct_payload():
     with patch(
-        "urllib.request.urlopen", return_value=_mock_response({"result": 42, "error": None})
+        "urllib.request.urlopen",
+        return_value=_mock_response({"result": 42, "error": None}),
     ) as mock_urlopen:
         result = ankiconnect.invoke("findCards", query="deck:karpathy")
 
@@ -39,16 +40,64 @@ def test_invoke_raises_on_anki_error():
 
 
 def test_invoke_raises_when_anki_not_running():
-    with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("Connection refused")):
-        with pytest.raises(ankiconnect.AnkiConnectError, match="is Anki Desktop running"):
+    with patch(
+        "urllib.request.urlopen",
+        side_effect=urllib.error.URLError("Connection refused"),
+    ):
+        with pytest.raises(
+            ankiconnect.AnkiConnectError, match="is Anki Desktop running"
+        ):
             ankiconnect.invoke("findCards")
+
+
+def test_invoke_retries_one_transient_connection_failure():
+    with patch(
+        "urllib.request.urlopen",
+        side_effect=[
+            urllib.error.URLError("Connection refused"),
+            _mock_response({"result": 42, "error": None}),
+        ],
+    ) as mock_urlopen:
+        assert ankiconnect.invoke("version") == 42
+
+    assert mock_urlopen.call_count == 2
+
+
+def test_invoke_does_not_retry_anki_body_errors():
+    with patch(
+        "urllib.request.urlopen",
+        return_value=_mock_response({"result": None, "error": "bad action"}),
+    ) as mock_urlopen:
+        with pytest.raises(ankiconnect.AnkiConnectError):
+            ankiconnect.invoke("badAction")
+
+    assert mock_urlopen.call_count == 1
+
+
+def test_invoke_rejects_malformed_response():
+    with patch("urllib.request.urlopen", return_value=_mock_response({"result": 1})):
+        with pytest.raises(ankiconnect.AnkiConnectError, match="malformed"):
+            ankiconnect.invoke("version")
+
+
+def test_status_classifies_unavailable_anki():
+    with patch(
+        "quiron.ankiconnect.invoke",
+        side_effect=ankiconnect.AnkiConnectError("offline"),
+    ):
+        assert ankiconnect.status()["state"] == "unavailable"
 
 
 def test_cards_info_by_note_id_maps_correctly():
     notes_info = [{"noteId": 111, "cards": [1001]}, {"noteId": 222, "cards": [1002]}]
-    cards_info = [{"note": 111, "cardId": 1001, "interval": 21}, {"note": 222, "cardId": 1002, "interval": 5}]
+    cards_info = [
+        {"note": 111, "cardId": 1001, "interval": 21},
+        {"note": 222, "cardId": 1002, "interval": 5},
+    ]
 
-    with patch("quiron.ankiconnect.invoke", side_effect=[notes_info, cards_info]) as mock_invoke:
+    with patch(
+        "quiron.ankiconnect.invoke", side_effect=[notes_info, cards_info]
+    ) as mock_invoke:
         result = ankiconnect.cards_info_by_note_id([111, 222])
 
     assert result == {111: cards_info[0], 222: cards_info[1]}
@@ -62,3 +111,16 @@ def test_cards_info_by_note_id_empty_list_short_circuits():
 
     assert result == {}
     mock_invoke.assert_not_called()
+
+
+def test_cards_by_note_id_preserves_multiple_cards():
+    notes_info = [{"noteId": 111, "cards": [1001, 1002]}]
+    cards_info = [
+        {"note": 111, "cardId": 1001, "interval": 21},
+        {"note": 111, "cardId": 1002, "interval": 5},
+    ]
+
+    with patch("quiron.ankiconnect.invoke", side_effect=[notes_info, cards_info]):
+        result = ankiconnect.cards_by_note_id([111])
+
+    assert result == {111: cards_info}
