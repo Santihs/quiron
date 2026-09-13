@@ -8,6 +8,8 @@ from pathlib import Path
 
 import yaml
 
+from .errors import QuironError
+
 EXCLUDED_DIR_NAMES = {
     ".git",
     ".venv",
@@ -25,15 +27,64 @@ class Vault:
     root: Path
 
     def path(self, *parts: str) -> Path:
-        return self.root.joinpath(*parts)
+        return self.resolve_relative(Path(*parts))
+
+    def resolve_relative(
+        self,
+        relative: str | Path,
+        *,
+        must_exist: bool = False,
+        expected: str | None = None,
+    ) -> Path:
+        """Resolve a vault-relative path without allowing filesystem escape."""
+        raw = str(relative)
+        normalized = raw.replace("\\", "/")
+        candidate_input = Path(normalized)
+        if (
+            candidate_input.is_absolute()
+            or candidate_input.drive
+            or re.match(r"^[A-Za-z]:/", normalized)
+        ):
+            raise QuironError(
+                "UNSAFE_PATH", f"unsafe vault path: {relative}", exit_code=4
+            )
+
+        root = self.root.resolve()
+        candidate = (root / candidate_input).resolve()
+        if candidate != root and root not in candidate.parents:
+            raise QuironError(
+                "UNSAFE_PATH", f"unsafe vault path: {relative}", exit_code=4
+            )
+        if must_exist and not candidate.exists():
+            raise QuironError(
+                "MISSING_PATH", f"vault path does not exist: {relative}", exit_code=4
+            )
+        if candidate.exists() and expected == "file" and not candidate.is_file():
+            raise QuironError(
+                "INVALID_PATH", f"vault path is not a file: {relative}", exit_code=4
+            )
+        if candidate.exists() and expected == "directory" and not candidate.is_dir():
+            raise QuironError(
+                "INVALID_PATH",
+                f"vault path is not a directory: {relative}",
+                exit_code=4,
+            )
+        return candidate
+
+    def _contained(self, path: Path) -> Path:
+        candidate = path.resolve()
+        root = self.root.resolve()
+        if candidate != root and root not in candidate.parents:
+            raise QuironError("UNSAFE_PATH", f"unsafe vault path: {path}", exit_code=4)
+        return candidate
 
     def read_text(self, path: Path) -> str:
-        return path.read_text(encoding="utf-8")
+        return self._contained(path).read_text(encoding="utf-8")
 
     def write_text(self, path: Path, content: str) -> None:
         from .store import atomic_write_text
 
-        atomic_write_text(path, content)
+        atomic_write_text(self._contained(path), content)
 
     def walk_markdown(self, subdir: str) -> list[Path]:
         """List *.md files under vault/subdir, sorted, skipping excluded dirs."""
@@ -50,11 +101,12 @@ class Vault:
         return sorted(out)
 
     def relative(self, path: Path) -> str:
-        return path.relative_to(self.root).as_posix()
+        return self._contained(path).relative_to(self.root.resolve()).as_posix()
 
 
 def split_frontmatter(raw: str) -> tuple[dict | None, str]:
     """Returns (frontmatter_dict_or_None, body). None means no/invalid frontmatter."""
+    raw = raw.lstrip("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
     m = FRONTMATTER_RE.match(raw)
     if not m:
         return None, raw
@@ -77,8 +129,14 @@ def read_note_id(vault: Vault, card_path: str) -> int | None:
     """Reads the `noteId` frontmatter field of a card given its vault-relative
     path (e.g. "04-Quiz-Bank/karpathy/x.md"). Shared by recall.py and
     audit.py — both need to go from a CardRef.path to the Anki note id."""
-    fm, _ = read_frontmatter(vault, vault.path(*card_path.split("/")))
+    try:
+        fm, _ = read_frontmatter(vault, vault.path(*card_path.split("/")))
+    except (OSError, QuironError):
+        return None
     if fm is None:
         return None
     note_id = fm.get("noteId")
-    return int(note_id) if note_id is not None else None
+    try:
+        return int(note_id) if note_id is not None else None
+    except (TypeError, ValueError):
+        return None

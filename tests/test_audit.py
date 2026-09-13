@@ -12,7 +12,12 @@ def _write_card(vault, name, question, answer, ref="05-Projects/x.py", note_id=1
 
 def test_layer1_giveaway_overlap(tmp_path):
     v = Vault(root=tmp_path)
-    _write_card(v, "a.md", "Que es un vector unitario?", "Un vector unitario es un vector unitario de norma uno.")
+    _write_card(
+        v,
+        "a.md",
+        "Que es un vector unitario?",
+        "Un vector unitario es un vector unitario de norma uno.",
+    )
     _, body = read_frontmatter(v, tmp_path / "04-Quiz-Bank" / "karpathy" / "a.md")
     flags = layer1_flags({"04-Quiz-Bank/karpathy/a.md": (body, False)})
     assert "giveaway_overlap" in flags["04-Quiz-Bank/karpathy/a.md"]
@@ -56,9 +61,31 @@ def test_layer1_duplicate_questions_flag_each_other():
 
 
 def test_layer1_fine_card_has_no_flags():
-    body = "Que es X?\n\n---\n\nX es Y, una definicion breve y directa.\n\nRef: `x.md`\n"
+    body = (
+        "Que es X?\n\n---\n\nX es Y, una definicion breve y directa.\n\nRef: `x.md`\n"
+    )
     flags = layer1_flags({"fine.md": (body, False)})
     assert "fine.md" not in flags
+
+
+def test_layer1_malformed_qa_is_not_treated_as_clean():
+    flags = layer1_flags({"broken.md": ("Pregunta sin respuesta", False)})
+
+    assert "malformed_qa" in flags["broken.md"]
+
+
+def test_run_flags_card_without_concept_mapping(tmp_path):
+    v = Vault(root=tmp_path)
+    (tmp_path / "00-Meta").mkdir()
+    _write_card(v, "unmapped.md", "Pregunta", "Respuesta breve.")
+
+    report = run(v, Knowledge(), notes_info={})
+
+    candidate = next(
+        c for c in report.candidates if c.card_path.endswith("unmapped.md")
+    )
+    assert candidate.concept_slug is None
+    assert "unmapped_concept" in candidate.reasons
 
 
 def test_lapses_signal_suspect_when_understood():
@@ -116,7 +143,9 @@ def test_run_suspect_card_becomes_candidate_not_informational(tmp_path):
     report = run(v, k, notes_info=notes_info)
     candidate_paths = {c.card_path for c in report.candidates}
     assert "04-Quiz-Bank/karpathy/a.md" in candidate_paths
-    matched = next(c for c in report.candidates if c.card_path == "04-Quiz-Bank/karpathy/a.md")
+    matched = next(
+        c for c in report.candidates if c.card_path == "04-Quiz-Bank/karpathy/a.md"
+    )
     assert "suspect_card" in matched.reasons
     assert matched.lapses == 7
     assert report.informational == []
@@ -138,7 +167,9 @@ def test_run_deck_param_reads_different_folder(tmp_path):
 
     report_devtalles = run(v, k, notes_info={}, deck="devtalles")
     assert report_devtalles.checked == 1
-    assert any(c.card_path.endswith("devtalles/b.md") for c in report_devtalles.candidates)
+    assert any(
+        c.card_path.endswith("devtalles/b.md") for c in report_devtalles.candidates
+    )
 
 
 def test_run_probably_dont_know_is_informational_not_candidate(tmp_path):

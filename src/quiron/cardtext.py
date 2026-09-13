@@ -8,12 +8,36 @@ itself, reused by every layer-1 audit check.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 from .headings import normalize
 
 QA_SEPARATOR_RE = re.compile(r"\n---\n")
 
 MIN_TOKEN_LEN = 4  # a cheap stopword proxy: drop short/common words
+
+
+@dataclass(frozen=True)
+class QAParse:
+    question: str
+    answer: str
+    valid: bool
+    reason: str | None = None
+
+
+def parse_qa(body: str) -> QAParse:
+    """Parse a card and expose malformed separator/empty-side diagnostics."""
+    parts = QA_SEPARATOR_RE.split(body.strip())
+    if len(parts) == 1:
+        return QAParse(parts[0], "", False, "missing_separator")
+    if len(parts) != 2:
+        return QAParse(parts[0].strip(), parts[1].strip(), False, "multiple_separators")
+    question, answer = (part.strip() for part in parts)
+    if not question:
+        return QAParse(question, answer, False, "empty_question")
+    if not answer:
+        return QAParse(question, answer, False, "empty_answer")
+    return QAParse(question, answer, True)
 
 
 def split_qa(body: str) -> tuple[str, str]:

@@ -17,6 +17,7 @@ from .headings import (
     is_concept_heading,
     parse_ref,
     resolve_anchor,
+    resolve_anchor_detailed,
     slugify,
 )
 from .schema import CardRef, Concept, Doubt, Knowledge, Source
@@ -30,6 +31,7 @@ class SeedReport:
     concepts_orphaned: list[str] = field(default_factory=list)
     headings_skipped: list[str] = field(default_factory=list)
     cards_unresolved: list[tuple[str, str]] = field(default_factory=list)
+    cards_ambiguous: list[tuple[str, str, list[int]]] = field(default_factory=list)
     cards_resolved: int = 0
     doubts_unlinked: list[str] = field(default_factory=list)
 
@@ -139,6 +141,7 @@ def seed(
         unit = _unit_from_frontmatter(fm)
         sources = _sources_from_frontmatter(fm)
         seen_at_file: set[str] = set()
+        slug_by_line: dict[int, str] = {}
 
         for h in info["headings"]:
             base_slug = _concept_slug(stem, h.text)
@@ -149,6 +152,7 @@ def seed(
                 n += 1
             seen_at_file.add(slug)
             seen_slugs.add(slug)
+            slug_by_line[h.line_no] = slug
 
             if slug in by_slug:
                 c = by_slug[slug]
@@ -167,6 +171,7 @@ def seed(
                 )
                 by_slug[slug] = c
                 report.concepts_created += 1
+        info["slug_by_line"] = slug_by_line
 
     for slug in by_slug:
         if slug not in seen_slugs:
@@ -189,17 +194,27 @@ def seed(
         if info is None:
             report.cards_unresolved.append((card_path, ref_content))
             continue
-        resolved = resolve_anchor(anchor, info["headings"])
+        resolution = resolve_anchor_detailed(anchor, info["headings"])
+        if resolution.status == "ambiguous":
+            report.cards_ambiguous.append(
+                (card_path, ref_content, [h.line_no for h in resolution.matches])
+            )
+            continue
+        resolved = resolution.heading
         if resolved is None:
             report.cards_unresolved.append((card_path, ref_content))
             continue
-        target_slug = _concept_slug(info["stem"], resolved.text)
+        target_slug = info["slug_by_line"].get(
+            resolved.line_no, _concept_slug(info["stem"], resolved.text)
+        )
         if target_slug not in new_card_refs:
             # Duplicate-heading suffix wasn't reproduced (rare) — skip safely.
             report.cards_unresolved.append((card_path, ref_content))
             continue
         prior = existing_card_state.get(target_slug, {}).get(card_path)
-        new_card_refs[target_slug].append(prior if prior is not None else CardRef(path=card_path))
+        new_card_refs[target_slug].append(
+            prior if prior is not None else CardRef(path=card_path)
+        )
         card_to_resolved_slug[card_path] = target_slug
         report.cards_resolved += 1
 

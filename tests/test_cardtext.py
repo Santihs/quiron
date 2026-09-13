@@ -5,6 +5,7 @@ from quiron.cardtext import (
     split_qa,
     word_count,
 )
+from quiron.cardtext import parse_qa
 
 
 def test_split_qa_basic():
@@ -18,6 +19,13 @@ def test_split_qa_no_separator_returns_whole_body_as_question():
     q, a = split_qa("solo texto sin separador")
     assert q == "solo texto sin separador"
     assert a == ""
+
+
+def test_parse_qa_marks_missing_separator_as_malformed():
+    parsed = parse_qa("solo texto sin separador")
+
+    assert not parsed.valid
+    assert parsed.reason == "missing_separator"
 
 
 def test_normalize_tokens_strips_accents_and_short_words():

@@ -81,9 +81,14 @@ def layer1_flags(cards: dict[str, tuple[str, bool]]) -> dict[str, list[str]]:
     normalized_questions: dict[str, set[str]] = {}
 
     for path, (body, self_explain) in cards.items():
-        question, raw_answer = cardtext.split_qa(body)
-        answer = _strip_ref_line(raw_answer)
+        parsed = cardtext.parse_qa(body)
+        question = parsed.question
+        answer = _strip_ref_line(parsed.answer)
         reasons: list[str] = []
+        if not parsed.valid:
+            flags[path] = ["malformed_qa"]
+            normalized_questions[path] = cardtext.normalize_tokens(question)
+            continue
 
         q_tokens = cardtext.normalize_tokens(question)
         a_tokens = cardtext.normalize_tokens(answer)
@@ -93,7 +98,10 @@ def layer1_flags(cards: dict[str, tuple[str, bool]]) -> dict[str, list[str]]:
         # a self-explain derivation's numbered steps are expected and
         # exempt — that IS the "one tightly-coupled derivation" the
         # reviewer's own spec calls right-sized.
-        if not self_explain and cardtext.count_enumeration_items(answer) >= MIN_INFO_ITEMS:
+        if (
+            not self_explain
+            and cardtext.count_enumeration_items(answer) >= MIN_INFO_ITEMS
+        ):
             reasons.append("enumeration")
 
         max_words = MAX_WORDS_SELF_EXPLAIN if self_explain else MAX_WORDS
@@ -112,7 +120,9 @@ def layer1_flags(cards: dict[str, tuple[str, bool]]) -> dict[str, list[str]]:
             tokens_j = normalized_questions[paths[j]]
             if not tokens_i or not tokens_j:
                 continue
-            ratio = difflib.SequenceMatcher(None, sorted(tokens_i), sorted(tokens_j)).ratio()
+            ratio = difflib.SequenceMatcher(
+                None, sorted(tokens_i), sorted(tokens_j)
+            ).ratio()
             if ratio >= DUPLICATE_RATIO:
                 flags.setdefault(paths[i], []).append("duplicate")
                 flags.setdefault(paths[j], []).append("duplicate")
@@ -142,6 +152,9 @@ def run(
     by_slug = {c.slug: c for c in knowledge.concepts}
 
     flags = layer1_flags(cards)
+    for path in cards:
+        if path not in card_to_slug:
+            flags.setdefault(path, []).append("unmapped_concept")
 
     # dangling Ref: — reuse seed's own resolution, no new logic
     _, seed_report = seed(vault, existing=knowledge, deck=deck)
@@ -175,7 +188,9 @@ def run(
                 flags.setdefault(path, []).append("suspect_card")
             elif signal == "probably_dont_know_it":
                 report.informational.append(
-                    Informational(card_path=path, concept_slug=slug, reason=signal, lapses=lapses)
+                    Informational(
+                        card_path=path, concept_slug=slug, reason=signal, lapses=lapses
+                    )
                 )
 
     for path, reasons in flags.items():
@@ -213,7 +228,9 @@ class RecordReviewReport:
     skipped_no_card_ref: list[str] = field(default_factory=list)
 
 
-def record_review(knowledge: Knowledge, proposals: list[ReviewProposal]) -> RecordReviewReport:
+def record_review(
+    knowledge: Knowledge, proposals: list[ReviewProposal]
+) -> RecordReviewReport:
     report = RecordReviewReport()
     today = date.today()
 

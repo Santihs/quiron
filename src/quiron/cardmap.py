@@ -17,5 +17,14 @@ def card_to_concept(knowledge: Knowledge) -> dict[str, str]:
     out: dict[str, str] = {}
     for c in knowledge.concepts:
         for cr in c.card_refs:
-            out[cr.path] = c.slug
+            out.setdefault(cr.path, c.slug)
     return out
+
+
+def duplicate_card_paths(knowledge: Knowledge) -> dict[str, list[str]]:
+    """Return card paths assigned to more than one concept, deterministically."""
+    owners: dict[str, list[str]] = {}
+    for concept in knowledge.concepts:
+        for card in concept.card_refs:
+            owners.setdefault(card.path, []).append(concept.slug)
+    return {path: slugs for path, slugs in owners.items() if len(slugs) > 1}

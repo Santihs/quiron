@@ -22,7 +22,9 @@ def test_seed_skips_structural_headings_and_reports_them(vault):
 def test_seed_resolves_card_by_prefix_match(vault):
     result, report = seed(vault)
     c = next(
-        c for c in result.concepts if c.slug == "coding-the-matrix-inner-product--12-el-annihilator-6-5"
+        c
+        for c in result.concepts
+        if c.slug == "coding-the-matrix-inner-product--12-el-annihilator-6-5"
     )
     assert len(c.card_refs) == 1
     assert c.card_refs[0].path == "04-Quiz-Bank/karpathy/annihilator-definicion.md"
@@ -31,7 +33,9 @@ def test_seed_resolves_card_by_prefix_match(vault):
 def test_seed_resolves_card_by_exact_match(vault):
     result, _ = seed(vault)
     c = next(
-        c for c in result.concepts if c.slug == "coding-the-matrix-inner-product--8-3-orthogonality"
+        c
+        for c in result.concepts
+        if c.slug == "coding-the-matrix-inner-product--8-3-orthogonality"
     )
     paths = {cr.path for cr in c.card_refs}
     assert "04-Quiz-Bank/karpathy/orthogonality-exact.md" in paths
@@ -46,10 +50,14 @@ def test_seed_reports_unresolvable_card_ref(vault):
 def test_seed_links_doubt_with_own_ref_line(vault):
     result, report = seed(vault)
     c = next(
-        c for c in result.concepts if c.slug == "coding-the-matrix-inner-product--8-3-orthogonality"
+        c
+        for c in result.concepts
+        if c.slug == "coding-the-matrix-inner-product--8-3-orthogonality"
     )
     resolution_refs = {d.resolution_ref for d in c.doubts}
-    assert "06-Doubts-Resolved/ortogonalidad-por-que-se-define-asi.md" in resolution_refs
+    assert (
+        "06-Doubts-Resolved/ortogonalidad-por-que-se-define-asi.md" in resolution_refs
+    )
 
 
 def test_seed_reports_unlinked_doubt(vault):
@@ -90,7 +98,11 @@ def test_seed_preserves_card_quality_by_path_on_refresh(vault):
 
     result2, _ = seed(vault, existing=result1)
     c2 = next(c for c in result2.concepts if c.slug == slug)
-    target = next(cr for cr in c2.card_refs if cr.path == "04-Quiz-Bank/karpathy/orthogonality-exact.md")
+    target = next(
+        cr
+        for cr in c2.card_refs
+        if cr.path == "04-Quiz-Bank/karpathy/orthogonality-exact.md"
+    )
     assert target.quality == "ok"
     assert str(target.reviewed_at) == "2026-08-20"
 
@@ -99,7 +111,9 @@ def test_seed_topic_note_without_frontmatter_still_seeds(tmp_path):
     v = Vault(root=tmp_path)
     d = tmp_path / "02-Topics"
     d.mkdir()
-    v.write_text(d / "Skills.md", "# Skills\n\nReusable behaviors.\n\n## Notas\n\nsome text\n")
+    v.write_text(
+        d / "Skills.md", "# Skills\n\nReusable behaviors.\n\n## Notas\n\nsome text\n"
+    )
 
     result, _ = seed(v)
     assert [c.slug for c in result.concepts] == ["skills--skills"]
@@ -136,7 +150,9 @@ def test_seed_normal_heading_note_unaffected_by_fallback(tmp_path):
     v = Vault(root=tmp_path)
     d = tmp_path / "02-Topics"
     d.mkdir()
-    v.write_text(d / "Multi.md", "# Multi\n\n## Concept A\n\ntext\n\n## Concept B\n\ntext\n")
+    v.write_text(
+        d / "Multi.md", "# Multi\n\n## Concept A\n\ntext\n\n## Concept B\n\ntext\n"
+    )
 
     result, _ = seed(v)
     assert {c.title for c in result.concepts} == {"Concept A", "Concept B"}
@@ -160,7 +176,9 @@ def test_seed_deck_param_reads_different_folder(tmp_path):
 
     result_devtalles, report = seed(v, deck="devtalles")
     assert report.cards_resolved == 1
-    assert result_devtalles.concepts[0].card_refs[0].path == "04-Quiz-Bank/devtalles/a.md"
+    assert (
+        result_devtalles.concepts[0].card_refs[0].path == "04-Quiz-Bank/devtalles/a.md"
+    )
 
 
 def test_seed_reports_orphaned_concept_not_deleted(vault):
@@ -172,3 +190,24 @@ def test_seed_reports_orphaned_concept_not_deleted(vault):
     slugs = {c.slug for c in result2.concepts}
     assert "ghost--slug" in slugs
     assert "ghost--slug" in report.concepts_orphaned
+
+
+def test_seed_reports_ambiguous_duplicate_heading_reference(tmp_path):
+    v = Vault(root=tmp_path)
+    topics = tmp_path / "02-Topics"
+    topics.mkdir()
+    v.write_text(topics / "X.md", "# X\n\n## Duplicate\n\n## Duplicate\n")
+    deck = tmp_path / "04-Quiz-Bank" / "karpathy"
+    deck.mkdir(parents=True)
+    v.write_text(
+        deck / "x.md",
+        "Question\n\n---\n\nAnswer\n\nRef: `02-Topics/X.md — Duplicate`\n",
+    )
+
+    result, report = seed(v)
+
+    assert {c.slug for c in result.concepts} == {"x--duplicate", "x--duplicate-2"}
+    assert report.cards_resolved == 0
+    assert report.cards_ambiguous == [
+        ("04-Quiz-Bank/karpathy/x.md", "02-Topics/X.md — Duplicate", [3, 5])
+    ]

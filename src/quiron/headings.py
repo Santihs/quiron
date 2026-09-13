@@ -5,9 +5,14 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
+from typing import Literal
 
-HEADING_RE = re.compile(r"^(#{2,3})\s+(.+?)\s*$", re.MULTILINE)
-REF_LINE_RE = re.compile(r"^Ref:\s*`(.+)`\s*$", re.MULTILINE)
+HEADING_RE = re.compile(r"^(#{2,3})\s+(.+?)\s*$")
+REF_LINE_RE = re.compile(
+    r"^\s*Ref:\s*(?:`([^`\r\n]+)`|([^`\r\n]+))\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 
 EM_DASH = "—"
 
@@ -49,13 +54,33 @@ class Heading:
     line_no: int  # 1-indexed
 
 
+@dataclass(frozen=True)
+class AnchorResolution:
+    status: Literal["exact", "prefix", "ambiguous", "unresolved"]
+    heading: Heading | None = None
+    matches: tuple[Heading, ...] = ()
+
+
 def extract_headings(body: str) -> list[Heading]:
     """All ## and ### headings in a topic note body, in document order."""
     out: list[Heading] = []
-    for m in HEADING_RE.finditer(body):
+    fence: str | None = None
+    for line_no, line in enumerate(body.replace("\r\n", "\n").split("\n"), start=1):
+        fence_match = FENCE_RE.match(line)
+        if fence_match:
+            marker = fence_match.group(1)[0]
+            if fence is None:
+                fence = marker
+            elif fence == marker:
+                fence = None
+            continue
+        if fence is not None:
+            continue
+        m = HEADING_RE.match(line)
+        if not m:
+            continue
         level = len(m.group(1))
         text = m.group(2)
-        line_no = body.count("\n", 0, m.start()) + 1
         out.append(Heading(level=level, text=text, line_no=line_no))
     return out
 
@@ -70,10 +95,22 @@ def concept_headings(body: str) -> list[Heading]:
 
 def extract_ref(card_body: str) -> str | None:
     """Return the raw backtick-wrapped content of the Ref: line, or None."""
-    m = REF_LINE_RE.search(card_body)
-    if not m:
-        return None
-    return m.group(1)
+    fence: str | None = None
+    for line in card_body.replace("\r\n", "\n").split("\n"):
+        fence_match = FENCE_RE.match(line)
+        if fence_match:
+            marker = fence_match.group(1)[0]
+            if fence is None:
+                fence = marker
+            elif fence == marker:
+                fence = None
+            continue
+        if fence is not None:
+            continue
+        m = REF_LINE_RE.match(line)
+        if m:
+            return (m.group(1) or m.group(2)).strip()
+    return None
 
 
 def parse_ref(ref_content: str) -> tuple[str, str | None]:
@@ -96,13 +133,24 @@ def parse_ref(ref_content: str) -> tuple[str, str | None]:
     return path, anchor
 
 
-def resolve_anchor(anchor: str, headings: list[Heading]) -> Heading | None:
-    """exact match -> prefix match -> None (unresolved)."""
+def resolve_anchor_detailed(anchor: str, headings: list[Heading]) -> AnchorResolution:
+    """Resolve exact, unique-prefix, ambiguous, and unresolved anchors."""
     anchor_n = anchor.strip()
-    for h in headings:
-        if h.text.strip() == anchor_n:
-            return h
-    for h in headings:
-        if h.text.strip().startswith(anchor_n):
-            return h
-    return None
+    exact = tuple(h for h in headings if h.text.strip() == anchor_n)
+    if len(exact) == 1:
+        return AnchorResolution(status="exact", heading=exact[0], matches=exact)
+    if len(exact) > 1:
+        return AnchorResolution(status="ambiguous", matches=exact)
+
+    prefix = tuple(h for h in headings if h.text.strip().startswith(anchor_n))
+    if len(prefix) == 1:
+        return AnchorResolution(status="prefix", heading=prefix[0], matches=prefix)
+    if len(prefix) > 1:
+        return AnchorResolution(status="ambiguous", matches=prefix)
+    return AnchorResolution(status="unresolved")
+
+
+def resolve_anchor(anchor: str, headings: list[Heading]) -> Heading | None:
+    """Return a uniquely resolved exact or prefix anchor."""
+    result = resolve_anchor_detailed(anchor, headings)
+    return result.heading

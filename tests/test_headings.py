@@ -24,7 +24,15 @@ def test_extract_headings_levels_and_order(vault):
     assert "8.3 — Orthogonality" in texts
     assert "8.3.2 — Descomposicion paralela + ortogonal" in texts
     # order preserved
-    assert texts.index("8.1 — El fire engine problem") < texts.index("8.3 — Orthogonality")
+    assert texts.index("8.1 — El fire engine problem") < texts.index(
+        "8.3 — Orthogonality"
+    )
+
+
+def test_extract_headings_ignores_fenced_code():
+    body = "## Real\n\n```markdown\n## Not a concept\n```\n\n### Also real\n"
+
+    assert [h.text for h in extract_headings(body)] == ["Real", "Also real"]
 
 
 def test_duplicate_heading_both_present(vault):
@@ -94,6 +102,22 @@ def test_resolve_anchor_unresolved():
     headings = [Heading(level=2, text="8.3 — Orthogonality", line_no=10)]
     h = resolve_anchor("Parte 1, seccion 1", headings)
     assert h is None
+
+
+def test_resolve_anchor_detailed_reports_ambiguous_prefix():
+    from quiron.headings import Heading, resolve_anchor_detailed
+
+    result = resolve_anchor_detailed(
+        "8.3",
+        [
+            Heading(level=2, text="8.3 — Orthogonality", line_no=10),
+            Heading(level=2, text="8.3 — Applications", line_no=20),
+        ],
+    )
+
+    assert result.status == "ambiguous"
+    assert len(result.matches) == 2
+    assert resolve_anchor("8.3", result.matches) is None
 
 
 def test_extract_ref_from_card(vault):
