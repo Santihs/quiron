@@ -22,12 +22,10 @@ DONE = ("explained", "applied")
 
 
 def is_blocked(concept: Concept, by_slug: dict[str, Concept]) -> bool:
-    """A prerequisite slug with no matching concept is treated as
-    satisfied — a data-integrity gap for `doctor`, not something `next`
-    should silently block on."""
+    """Block until every prerequisite exists and reaches explained evidence."""
     for slug in concept.prerequisites:
         prereq = by_slug.get(slug)
-        if prereq is not None and prereq.understanding not in DONE:
+        if prereq is None or prereq.understanding not in DONE:
             return True
     return False
 

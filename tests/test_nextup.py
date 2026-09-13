@@ -25,14 +25,34 @@ def test_blocked_excludes_concept_entirely():
     assert "advanced" not in [c.slug for c in result]
 
 
-def test_missing_prerequisite_slug_is_treated_as_satisfied():
+def test_missing_prerequisite_slug_blocks_concept():
     k = Knowledge(
         concepts=[
-            Concept(slug="advanced", title="Advanced", unit="phase-0", prerequisites=["ghost"]),
+            Concept(
+                slug="advanced",
+                title="Advanced",
+                unit="phase-0",
+                prerequisites=["ghost"],
+            ),
         ]
     )
     by_slug = {c.slug: c for c in k.concepts}
-    assert is_blocked(k.concepts[0], by_slug) is False
+    assert is_blocked(k.concepts[0], by_slug) is True
+
+
+def test_missing_prerequisite_slug_is_not_recommended():
+    k = Knowledge(
+        concepts=[
+            Concept(
+                slug="advanced",
+                title="Advanced",
+                unit="phase-0",
+                prerequisites=["ghost"],
+            ),
+        ]
+    )
+
+    assert candidates(k, today=TODAY) == []
 
 
 def test_open_doubt_ranks_above_coverage_gap():
@@ -49,7 +69,9 @@ def test_open_doubt_ranks_above_coverage_gap():
                 slug="doubty",
                 title="Doubty",
                 unit="phase-0",
-                doubts=[Doubt(question="q", raised_at=date(2026, 7, 20), status="open")],
+                doubts=[
+                    Doubt(question="q", raised_at=date(2026, 7, 20), status="open")
+                ],
                 evidence=[Evidence(kind="applied", at=TODAY, ref="x.py")],
             ),
         ]
@@ -80,8 +102,18 @@ def test_applied_with_open_doubt_still_appears_as_open_doubt():
 def test_unblocked_concept_with_no_evidence_yet():
     k = Knowledge(
         concepts=[
-            Concept(slug="prereq", title="Prereq", unit="phase-0", evidence=[Evidence(kind="explained", at=TODAY, ref="x.md")]),
-            Concept(slug="next-up", title="Next up", unit="phase-0", prerequisites=["prereq"]),
+            Concept(
+                slug="prereq",
+                title="Prereq",
+                unit="phase-0",
+                evidence=[Evidence(kind="explained", at=TODAY, ref="x.md")],
+            ),
+            Concept(
+                slug="next-up",
+                title="Next up",
+                unit="phase-0",
+                prerequisites=["prereq"],
+            ),
         ]
     )
     result = candidates(k, today=TODAY)
@@ -92,7 +124,12 @@ def test_unblocked_concept_with_no_evidence_yet():
 def test_no_explained_catchall():
     k = Knowledge(
         concepts=[
-            Concept(slug="x", title="X", unit="phase-0", evidence=[Evidence(kind="encountered", at=TODAY, ref="log.md")]),
+            Concept(
+                slug="x",
+                title="X",
+                unit="phase-0",
+                evidence=[Evidence(kind="encountered", at=TODAY, ref="log.md")],
+            ),
         ]
     )
     result = candidates(k, today=TODAY)
@@ -102,7 +139,12 @@ def test_no_explained_catchall():
 def test_concept_with_explained_evidence_and_no_signal_drops_off():
     k = Knowledge(
         concepts=[
-            Concept(slug="x", title="X", unit="phase-0", evidence=[Evidence(kind="explained", at=TODAY, ref="x.md")]),
+            Concept(
+                slug="x",
+                title="X",
+                unit="phase-0",
+                evidence=[Evidence(kind="explained", at=TODAY, ref="x.md")],
+            ),
         ]
     )
     assert candidates(k, today=TODAY) == []
@@ -111,8 +153,20 @@ def test_concept_with_explained_evidence_and_no_signal_drops_off():
 def test_oldest_open_doubt_ranks_first_among_doubts():
     k = Knowledge(
         concepts=[
-            Concept(slug="newer", title="Newer", unit="phase-0", doubts=[Doubt(question="q", raised_at=date(2026, 8, 20), status="open")]),
-            Concept(slug="older", title="Older", unit="phase-0", doubts=[Doubt(question="q", raised_at=date(2026, 7, 1), status="open")]),
+            Concept(
+                slug="newer",
+                title="Newer",
+                unit="phase-0",
+                doubts=[
+                    Doubt(question="q", raised_at=date(2026, 8, 20), status="open")
+                ],
+            ),
+            Concept(
+                slug="older",
+                title="Older",
+                unit="phase-0",
+                doubts=[Doubt(question="q", raised_at=date(2026, 7, 1), status="open")],
+            ),
         ]
     )
     result = candidates(k, today=TODAY)
