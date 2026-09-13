@@ -73,11 +73,12 @@ normal apply runs Copier, refreshes the managed `/quiz-me` evidence block, then
 runs `seed` and `doctor`. A vault can safely receive the first two operations
 while its card format is still incompatible with the seeder: this mode returns
 before `seed` or `doctor`, so an existing `knowledge.json` is not rewritten.
-claude-devtalles is the concrete case: its quiz files contain multiple
-`## Q:` / `**A:**` pairs with no individual `Ref:` or stable card address.
-Until card-level addressability is added, it must use `--templates-only` even
-when applying. Karpathy's one-card-per-file format remains compatible with the
-full migration path.
+claude-devtalles' legacy root quiz files are the concrete case: they contain
+multiple `## Q:` / `**A:**` pairs with no individual `Ref:` or stable card
+address. Its newer `04-Quiz-Bank/devtalles/` deck is one card per file with
+`Ref:` lines, and is compatible with the full migration path when passed as
+`--deck devtalles`. Karpathy's one-card-per-file format remains compatible with
+the full migration path too.
 
 ## `quiron-anki-sync` skill: yanki is headless, not Obsidian-only
 

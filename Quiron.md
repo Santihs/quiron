@@ -21,7 +21,7 @@ The current repository exposes these command surfaces:
 - `evidence --add` records evidence explicitly, while `next` and `sources` query the persisted model.
 - `doctor` reports seed-resolution findings, and `migrate` scaffolds the shared Claude Code/OpenCode plumbing. Its `--templates-only` mode updates that plumbing and the managed `/quiz-me` evidence handoff without running `seed` or `doctor`.
 
-Migrated vault-specific `/quiz-me` commands now receive a managed handoff for `explained` evidence. claude-devtalles uses `--templates-only` because its files contain multiple `## Q:` / `**A:**` pairs and have no card-level addressability; Karpathy can use the full seed-compatible path. Automatic conversion of `aplicado` captures into `applied` evidence remains a pending gap, not a current guarantee.
+Migrated vault-specific `/quiz-me` commands now receive a managed handoff for `explained` evidence. claude-devtalles' legacy root quiz files contain multiple `## Q:` / `**A:**` pairs, but its newer `04-Quiz-Bank/devtalles/` deck has one card per file with `Ref:` lines and supports the full migration path with `--deck devtalles`. Automatic conversion of `aplicado` captures into `applied` evidence remains a pending gap, not a current guarantee.
 
 ## What quiron is
 

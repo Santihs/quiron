@@ -45,10 +45,12 @@ hand-edited.
 Use `--templates-only` when a vault's card format is not supported by
 `quiron seed`. It still updates shared Claude Code/OpenCode plumbing and the
 managed `/quiz-me` evidence block, but does not run `seed` or `doctor` and
-therefore does not rewrite an existing `knowledge.json`. The current
-claude-devtalles vault is in this category because each quiz file has multiple
-`## Q:` / `**A:**` pairs without stable card-level addresses. Karpathy's
-one-card-per-file deck supports a full migration.
+therefore does not rewrite an existing `knowledge.json`. Choose this from the
+target deck's format, not the vault name: claude-devtalles' legacy root files
+have multiple `## Q:` / `**A:**` pairs without stable card-level addresses,
+while its `04-Quiz-Bank/devtalles/` deck has one card per file with `Ref:` and
+supports a full migration with `--deck devtalles`. Karpathy's one-card-per-file
+deck supports a full migration too.
 
 ```bash
 uv run --directory C:\SANTIAGO\quiron quiron migrate --vault <vault> --subject-expertise "<...>" --deck-path "<...>" --topic-notes-path "<...>" --resync-command "<...>" --domain-framing "<...>" [--templates-only]
