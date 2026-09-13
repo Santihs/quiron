@@ -12,6 +12,7 @@ import json
 import re
 from dataclasses import dataclass
 
+from .store import vault_lock
 from .vault import Vault
 
 CALLOUT_TYPES = ("duda", "concepto", "aplicado")
@@ -105,6 +106,11 @@ def write_inbox(vault: Vault, entries: list[dict]) -> None:
 
 
 def scan_and_merge(vault: Vault) -> tuple[list[Capture], int]:
+    with vault_lock(vault):
+        return _scan_and_merge(vault)
+
+
+def _scan_and_merge(vault: Vault) -> tuple[list[Capture], int]:
     """Scan daily logs, merge new captures into inbox.jsonl by id (idempotent).
 
     Returns (all_new_captures_found_this_scan, number_actually_added).

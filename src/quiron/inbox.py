@@ -14,6 +14,7 @@ from datetime import date
 from .capture import load_inbox, write_inbox
 from .history import append_events, make_event
 from .schema import Doubt, Evidence, Knowledge
+from .store import vault_lock
 
 
 @dataclass
@@ -55,6 +56,16 @@ def _as_date(value: date | str | None) -> date:
 
 
 def apply_proposals(
+    vault,
+    knowledge: Knowledge,
+    proposals: list[Proposal],
+    operation_id: str | None = None,
+) -> tuple[Knowledge, ApplyReport]:
+    with vault_lock(vault):
+        return _apply_proposals(vault, knowledge, proposals, operation_id)
+
+
+def _apply_proposals(
     vault,
     knowledge: Knowledge,
     proposals: list[Proposal],

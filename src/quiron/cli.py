@@ -6,6 +6,7 @@ import argparse
 import json
 import sys
 from dataclasses import asdict
+from functools import wraps
 from pathlib import Path
 
 from . import ankiconnect, audit, coverage, nextup, recall, sources
@@ -26,12 +27,23 @@ from .inputs import (
 from .migrate import run_migrate
 from .schema import Knowledge
 from .seed import seed as seed_run
+from .store import vault_lock
 from .today import build_report, render
 from .vault import Vault
 
 
 def _knowledge_path(vault: Vault) -> Path:
     return vault.path("00-Meta", "knowledge.json")
+
+
+def _locked_command(func):
+    @wraps(func)
+    def wrapper(args):
+        vault = Vault(root=Path(args.vault).resolve())
+        with vault_lock(vault):
+            return func(args)
+
+    return wrapper
 
 
 def load_knowledge(vault: Vault) -> Knowledge | None:
@@ -51,9 +63,11 @@ def load_knowledge(vault: Vault) -> Knowledge | None:
 
 def save_knowledge(vault: Vault, knowledge: Knowledge) -> None:
     p = _knowledge_path(vault)
-    vault.write_text(p, knowledge.model_dump_json(indent=2) + "\n")
+    with vault_lock(vault):
+        vault.write_text(p, knowledge.model_dump_json(indent=2) + "\n")
 
 
+@_locked_command
 def cmd_seed(args: argparse.Namespace) -> int:
     vault = Vault(root=Path(args.vault).resolve())
     existing = load_knowledge(vault)
@@ -85,6 +99,7 @@ def cmd_seed(args: argparse.Namespace) -> int:
     return 0
 
 
+@_locked_command
 def cmd_capture_scan(args: argparse.Namespace) -> int:
     vault = Vault(root=Path(args.vault).resolve())
     found, added = scan_and_merge(vault)
@@ -92,6 +107,7 @@ def cmd_capture_scan(args: argparse.Namespace) -> int:
     return 0
 
 
+@_locked_command
 def cmd_inbox(args: argparse.Namespace) -> int:
     vault = Vault(root=Path(args.vault).resolve())
     knowledge = load_knowledge(vault) or Knowledge()
@@ -146,6 +162,7 @@ def cmd_today(args: argparse.Namespace) -> int:
     return 0
 
 
+@_locked_command
 def cmd_cards(args: argparse.Namespace) -> int:
     vault = Vault(root=Path(args.vault).resolve())
     knowledge = load_knowledge(vault) or Knowledge()
@@ -343,6 +360,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0
 
 
+@_locked_command
 def cmd_migrate(args: argparse.Namespace) -> int:
     vault_path = Path(args.vault).resolve()
     is_existing = (vault_path / "00-Meta" / "knowledge.json").exists()
@@ -380,6 +398,7 @@ def cmd_migrate(args: argparse.Namespace) -> int:
     return 0
 
 
+@_locked_command
 def cmd_evidence(args: argparse.Namespace) -> int:
     vault = Vault(root=Path(args.vault).resolve())
     knowledge = load_knowledge(vault) or Knowledge()

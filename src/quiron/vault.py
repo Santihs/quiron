@@ -31,7 +31,9 @@ class Vault:
         return path.read_text(encoding="utf-8")
 
     def write_text(self, path: Path, content: str) -> None:
-        path.write_text(content, encoding="utf-8")
+        from .store import atomic_write_text
+
+        atomic_write_text(path, content)
 
     def walk_markdown(self, subdir: str) -> list[Path]:
         """List *.md files under vault/subdir, sorted, skipping excluded dirs."""
@@ -40,7 +42,9 @@ class Vault:
             return []
         out: list[Path] = []
         for p in base.rglob("*.md"):
-            if any(part in EXCLUDED_DIR_NAMES for part in p.relative_to(self.root).parts):
+            if any(
+                part in EXCLUDED_DIR_NAMES for part in p.relative_to(self.root).parts
+            ):
                 continue
             out.append(p)
         return sorted(out)

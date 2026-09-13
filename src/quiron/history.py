@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .errors import QuironError
+from .store import vault_lock
 from .vault import Vault
 
 HISTORY_PATH = ("00-Meta", "history.jsonl")
@@ -83,6 +84,11 @@ def load_history(vault: Vault) -> list[dict]:
 
 def append_events(vault: Vault, events: list[dict]) -> int:
     """Append unseen events and return the number written."""
+    with vault_lock(vault):
+        return _append_events(vault, events)
+
+
+def _append_events(vault: Vault, events: list[dict]) -> int:
     if not events:
         return 0
     existing = load_history(vault)
