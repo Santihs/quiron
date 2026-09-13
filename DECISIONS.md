@@ -63,10 +63,21 @@ parameters) should not put it in the shared template; this is the same
 reasoning used for `session-close`/`wrap-up` staying vault-specific (Fase 6
 entry below). Because a customization beyond parameters would otherwise be
 silently overwritten, `quiron migrate` defaults to a dry-run (Copier's own
-create/update/skip plan) whenever the target vault already has a
+rendered create/update/skip comparison) whenever the target vault already has a
 `00-Meta/knowledge.json`; a brand-new vault has nothing to lose and applies
 directly. This follows the `quiron-anki-sync` `yanki sync --dry-run`
 precedent.
+
+**`--templates-only` separates prompt sync from card-model compatibility.** A
+normal apply runs Copier, refreshes the managed `/quiz-me` evidence block, then
+runs `seed` and `doctor`. A vault can safely receive the first two operations
+while its card format is still incompatible with the seeder: this mode returns
+before `seed` or `doctor`, so an existing `knowledge.json` is not rewritten.
+claude-devtalles is the concrete case: its quiz files contain multiple
+`## Q:` / `**A:**` pairs with no individual `Ref:` or stable card address.
+Until card-level addressability is added, it must use `--templates-only` even
+when applying. Karpathy's one-card-per-file format remains compatible with the
+full migration path.
 
 ## `quiron-anki-sync` skill: yanki is headless, not Obsidian-only
 

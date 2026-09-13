@@ -27,7 +27,9 @@ Check whether `<vault>/00-Meta/knowledge.json` exists. If so, this is a
 re-sync, not a fresh install, and `quiron migrate` defaults to dry-run
 automatically. Run it without `--dry-run=false` first regardless, read the
 plan (`create`/`update`/`skip` per file), and confirm nothing unexpected would
-be overwritten before applying.
+be overwritten before applying. This plan covers Copier's prompt-file work and
+the managed `/quiz-me` evidence block only; a dry-run does not execute `seed`
+or `doctor`.
 
 These files are protected after first scaffold by `_skip_if_exists`:
 `CLAUDE.md`, `AGENTS.md`, `03-Daily-Logs/_template.md`, the three `00-Meta/`
@@ -40,18 +42,28 @@ Other shared Quiron workflow files are allowed to update from the canonical
 templates on apply. Flag any dry-run `update` for a file the user may have
 hand-edited.
 
+Use `--templates-only` when a vault's card format is not supported by
+`quiron seed`. It still updates shared Claude Code/OpenCode plumbing and the
+managed `/quiz-me` evidence block, but does not run `seed` or `doctor` and
+therefore does not rewrite an existing `knowledge.json`. The current
+claude-devtalles vault is in this category because each quiz file has multiple
+`## Q:` / `**A:**` pairs without stable card-level addresses. Karpathy's
+one-card-per-file deck supports a full migration.
+
 ```bash
-uv run --directory C:\SANTIAGO\quiron quiron migrate --vault <vault> --subject-expertise "<...>" --deck-path "<...>" --topic-notes-path "<...>" --resync-command "<...>" --domain-framing "<...>"
+uv run --directory C:\SANTIAGO\quiron quiron migrate --vault <vault> --subject-expertise "<...>" --deck-path "<...>" --topic-notes-path "<...>" --resync-command "<...>" --domain-framing "<...>" [--templates-only]
 ```
 
 ## Step 3 - Apply
 
-Once the plan looks right, re-run with `--dry-run=false`.
+Once the plan looks right, re-run with `--dry-run=false`. Keep
+`--templates-only` for a card-format-incompatible vault; omit it only when the
+vault supports the full seed path.
 
 ## Step 4 - Report
 
-Summarize the files created/updated/skipped, the seed report, and the doctor
-report. For a brand-new vault, zero concepts and zero findings are expected.
-Remind the user that `CLAUDE.md` pedagogy, `01-*/` structure, git init, and
-Anki setup are still manual next steps; `AGENTS.md` is only the OpenCode
-bridge to that vault-owned pedagogy.
+Summarize the files created/updated/skipped. For a full migration, also report
+the seed and doctor results; for `--templates-only`, state explicitly that
+neither ran. Remind the user that `CLAUDE.md` pedagogy, `01-*/` structure, git
+init, and Anki setup are still manual next steps; `AGENTS.md` is only the
+OpenCode bridge to that vault-owned pedagogy.

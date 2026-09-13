@@ -1,6 +1,17 @@
 import json
+from unittest.mock import patch
+
+import pytest
 
 from quiron.cli import main
+
+
+@pytest.fixture(autouse=True)
+def mock_anki_status():
+    with patch(
+        "quiron.doctor.ankiconnect.status", return_value={"state": "unavailable"}
+    ):
+        yield
 
 
 def test_migrate_new_vault_applies_directly(tmp_path, capsys):

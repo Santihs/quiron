@@ -19,9 +19,9 @@ The current repository exposes these command surfaces:
 - `today` scans new callouts, renders vault findings, runs the card audit, and performs an optional Anki recall contradiction check.
 - `cards --list-gaps`, `cards --decide`, `cards --list-undecided`, `cards --audit`, `cards --record-review`, and `cards --set-policy FILE` cover card-policy and card-quality workflows.
 - `evidence --add` records evidence explicitly, while `next` and `sources` query the persisted model.
-- `doctor` reports seed-resolution findings, and `migrate` scaffolds the shared Claude Code/OpenCode plumbing.
+- `doctor` reports seed-resolution findings, and `migrate` scaffolds the shared Claude Code/OpenCode plumbing. Its `--templates-only` mode updates that plumbing and the managed `/quiz-me` evidence handoff without running `seed` or `doctor`.
 
-Migrated vault-specific `/quiz-me` commands now receive a managed handoff for `explained` evidence. Automatic conversion of `aplicado` captures into `applied` evidence remains a pending gap, not a current guarantee.
+Migrated vault-specific `/quiz-me` commands now receive a managed handoff for `explained` evidence. claude-devtalles uses `--templates-only` because its files contain multiple `## Q:` / `**A:**` pairs and have no card-level addressability; Karpathy can use the full seed-compatible path. Automatic conversion of `aplicado` captures into `applied` evidence remains a pending gap, not a current guarantee.
 
 ## What quiron is
 
@@ -477,7 +477,7 @@ The evidence API, `quiron next`, and `quiron sources` are live. Migrated `/quiz-
 
 **Fase 6 — parametrize the reviewer.** `harvard-reviewer` → `quiz-reviewer`, subject expertise and deck path as inputs. The review *structure* (accuracy against `Ref:`, minimum information, typed verdict) is identical for linear algebra and a Claude Code course; only persona and paths differ.
 
-**Fase 7 — template, only if 1–6 hold.** copier, `copier.yml`, `_skip_if_exists`, `quiron migrate`. Deferred deliberately: generalizing before it works on two real vaults is what earlier versions did wrong. If two vaults work and nobody else ever uses it, the template was overhead — a fine thing to discover cheaply rather than build into.
+**Fase 7 — template, only if 1–6 hold.** copier, `copier.yml`, `_skip_if_exists`, `quiron migrate`, and `--templates-only` for a vault whose prompt plumbing is compatible but whose card format is not yet seed-compatible. Deferred deliberately: generalizing before it works on two real vaults is what earlier versions did wrong. If two vaults work and nobody else ever uses it, the template was overhead — a fine thing to discover cheaply rather than build into.
 
 **Vault-side housekeeping, still pending:** archive legacy `srs:` files, remove the legacy scheduler line from the vault-owned `CLAUDE.md`, update vault-specific `quiz-me.md` files that still mention "FSRS-lite" or SM-2 arithmetic, fix `note-collect/SKILL.md` Step 4's reference to the nonexistent `viz_html.py`, and enable FSRS in Anki where it is still off. These are outside this repository's runtime and canonical shared core.
 

@@ -12,6 +12,14 @@ ANSWERS = {
 }
 
 
+@pytest.fixture(autouse=True)
+def mock_anki_status():
+    with patch(
+        "quiron.doctor.ankiconnect.status", return_value={"state": "unavailable"}
+    ):
+        yield
+
+
 def test_run_migrate_scaffolds_new_vault(tmp_path):
     vault_path = tmp_path / "vault"
     report = run_migrate(vault_path, ANSWERS)
@@ -206,6 +214,23 @@ def test_run_migrate_dry_run_reports_quiz_me_sync_without_writing(tmp_path):
 
     assert "update .claude/commands/quiz-me.md" in report.copier_output
     assert command.read_text(encoding="utf-8") == original
+
+
+def test_run_migrate_dry_run_skips_identical_shared_workflows(tmp_path):
+    vault_path = tmp_path / "vault"
+    run_migrate(vault_path, ANSWERS, templates_only=True)
+
+    report = run_migrate(vault_path, ANSWERS, dry_run=True, templates_only=True)
+
+    assert "skip .claude/skills/quiron-inbox/SKILL.md" in report.copier_output
+    assert "skip .opencode/skills/quiron-init/SKILL.md" in report.copier_output
+
+    inbox_skill = vault_path / ".claude" / "skills" / "quiron-inbox" / "SKILL.md"
+    inbox_skill.write_text("custom workflow", encoding="utf-8")
+
+    report = run_migrate(vault_path, ANSWERS, dry_run=True, templates_only=True)
+
+    assert "update .claude/skills/quiron-inbox/SKILL.md" in report.copier_output
 
 
 def test_run_migrate_templates_only_preserves_knowledge(tmp_path):

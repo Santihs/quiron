@@ -12,6 +12,7 @@ from __future__ import annotations
 import fnmatch
 from dataclasses import dataclass, field
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import copier
 
@@ -93,7 +94,10 @@ def _run_migrate(
                 details={"path": str(knowledge_path)},
             ) from exc
 
-    report.copier_output = _planned_output(vault_path)
+    report.copier_output = _planned_output(vault_path, answers)
+    if dry_run:
+        return report
+
     copier.run_copy(
         src_path=str(TEMPLATES_DIR),
         dst_path=str(vault_path),
@@ -102,10 +106,7 @@ def _run_migrate(
         unsafe=True,
         vcs_ref="HEAD",
         overwrite=True,
-        pretend=dry_run,
     )
-    if dry_run:
-        return report
 
     _sync_quiz_me_evidence(vault_path)
     if templates_only:
@@ -163,8 +164,24 @@ def _quiz_me_needs_sync(path: Path) -> bool:
     return _replace_quiz_me_evidence(text, _quiz_me_evidence_block()) != text
 
 
-def _planned_output(vault_path: Path) -> list[str]:
-    """Return a stable create/update/skip preview without touching the vault."""
+def _planned_output(vault_path: Path, answers: dict) -> list[str]:
+    """Render to a sandbox and compare it with the vault without touching it."""
+    with TemporaryDirectory() as temp_dir:
+        rendered_vault = Path(temp_dir) / "vault"
+        copier.run_copy(
+            src_path=str(TEMPLATES_DIR),
+            dst_path=str(rendered_vault),
+            data=answers,
+            defaults=True,
+            unsafe=True,
+            vcs_ref="HEAD",
+            overwrite=True,
+        )
+        return _compare_rendered_output(vault_path, rendered_vault)
+
+
+def _compare_rendered_output(vault_path: Path, rendered_vault: Path) -> list[str]:
+    """Return create/update/skip actions for a rendered template snapshot."""
     skip_patterns = [
         "CLAUDE.md",
         "AGENTS.md",
@@ -192,7 +209,12 @@ def _planned_output(vault_path: Path) -> list[str]:
         elif any(fnmatch.fnmatch(relative, pattern) for pattern in skip_patterns):
             action = "skip" if destination.exists() else "create"
         elif destination.exists():
-            action = "update"
+            rendered = rendered_vault / relative
+            action = (
+                "skip"
+                if destination.read_bytes() == rendered.read_bytes()
+                else "update"
+            )
         else:
             action = "create"
         output.append(f"{action} {relative}")
