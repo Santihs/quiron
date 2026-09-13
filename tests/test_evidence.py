@@ -41,14 +41,41 @@ def test_add_evidence_appends_to_mapped_concept():
 
 def test_add_evidence_defaults_at_to_today():
     k = _knowledge_with_card()
-    add_evidence(k, card_path="04-Quiz-Bank/karpathy/eig.md", kind="explained", ref="x.md")
+    add_evidence(
+        k, card_path="04-Quiz-Bank/karpathy/eig.md", kind="explained", ref="x.md"
+    )
     assert k.concepts[0].evidence[0].at == date.today()
 
 
 def test_add_evidence_unmapped_card_leaves_knowledge_untouched():
     k = _knowledge_with_card()
     before = k.model_dump()
-    result = add_evidence(k, card_path="04-Quiz-Bank/karpathy/nope.md", kind="explained", ref="x.md")
+    result = add_evidence(
+        k, card_path="04-Quiz-Bank/karpathy/nope.md", kind="explained", ref="x.md"
+    )
     assert result.slug is None
     assert result.concept_title is None
     assert k.model_dump() == before
+
+
+def test_add_evidence_operation_is_idempotent():
+    k = _knowledge_with_card()
+
+    first = add_evidence(
+        k,
+        card_path="04-Quiz-Bank/karpathy/eig.md",
+        kind="explained",
+        ref="x.md",
+        operation_id="op-1",
+    )
+    second = add_evidence(
+        k,
+        card_path="04-Quiz-Bank/karpathy/eig.md",
+        kind="explained",
+        ref="x.md",
+        operation_id="op-1",
+    )
+
+    assert first.changed
+    assert not second.changed
+    assert len(k.concepts[0].evidence) == 1

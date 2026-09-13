@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from typing import Literal
 
 from .cardmap import card_to_concept
 from .schema import Evidence, Knowledge
@@ -19,15 +20,18 @@ from .schema import Evidence, Knowledge
 class AddEvidenceResult:
     slug: str | None
     concept_title: str | None
+    changed: bool = False
 
 
 def add_evidence(
     knowledge: Knowledge,
     card_path: str,
-    kind: str,
+    kind: Literal["encountered", "explained", "applied"],
     ref: str,
     scope: str | None = None,
     today: date | None = None,
+    operation_id: str | None = None,
+    capture_id: str | None = None,
 ) -> AddEvidenceResult:
     """Resolves card_path -> concept via card_to_concept, appends
     Evidence(kind, at=today or date.today(), ref, scope) to that concept.
@@ -43,7 +47,16 @@ def add_evidence(
         return AddEvidenceResult(slug=None, concept_title=None)
 
     concept = next(c for c in knowledge.concepts if c.slug == slug)
+    if operation_id and any(e.operation_id == operation_id for e in concept.evidence):
+        return AddEvidenceResult(slug=slug, concept_title=concept.title, changed=False)
     concept.evidence.append(
-        Evidence(kind=kind, at=today or date.today(), ref=ref, scope=scope)
+        Evidence(
+            kind=kind,
+            at=today or date.today(),
+            ref=ref,
+            scope=scope,
+            operation_id=operation_id,
+            capture_id=capture_id,
+        )
     )
-    return AddEvidenceResult(slug=slug, concept_title=concept.title)
+    return AddEvidenceResult(slug=slug, concept_title=concept.title, changed=True)

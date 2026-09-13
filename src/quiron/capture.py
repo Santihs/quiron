@@ -39,6 +39,8 @@ def _capture_id(source_log: str, text: str) -> str:
 def extract_captures(body: str, source_log: str) -> list[Capture]:
     lines = body.splitlines()
     out: list[Capture] = []
+    seen_ids: set[str] = set()
+    collision_counts: dict[str, int] = {}
     i = 0
     while i < len(lines):
         m = CALLOUT_START_RE.match(lines[i])
@@ -56,12 +58,23 @@ def extract_captures(body: str, source_log: str) -> list[Capture]:
             i += 1
         text = " ".join(p for p in parts if p).strip()
         if text:
+            base_id = _capture_id(source_log, text)
+            capture_id = base_id
+            if capture_id in seen_ids:
+                occurrence = collision_counts.get(base_id, 1)
+                while capture_id in seen_ids:
+                    capture_id = hashlib.sha1(
+                        f"{source_log}\n{kind}\n{occurrence}\n{text}".encode("utf-8")
+                    ).hexdigest()[:16]
+                    occurrence += 1
+                collision_counts[base_id] = occurrence
+            seen_ids.add(capture_id)
             out.append(
                 Capture(
                     kind=kind,
                     text=text,
                     source_log=source_log,
-                    id=_capture_id(source_log, text),
+                    id=capture_id,
                 )
             )
     return out

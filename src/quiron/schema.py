@@ -15,6 +15,8 @@ class Evidence(BaseModel):
     at: date
     ref: str  # obligatorio POR CONSTRUCCION — no Optional
     scope: Optional[str] = None  # "solo la interpretacion geometrica"
+    capture_id: Optional[str] = None
+    operation_id: Optional[str] = None
 
 
 class Doubt(BaseModel):
@@ -24,6 +26,8 @@ class Doubt(BaseModel):
     resolved_at: Optional[date] = None
     resolution_ref: Optional[str] = None  # -> 06-Doubts-Resolved/xxx.md
     resolved_by: Optional[str] = None  # "segunda fuente" / "peer" / "solo"
+    capture_id: Optional[str] = None
+    operation_id: Optional[str] = None
 
 
 class CardRef(BaseModel):
@@ -53,9 +57,7 @@ class Concept(BaseModel):
     @property
     def understanding(self) -> str:
         """Derivado, nunca guardado."""
-        return max(
-            (e.kind for e in self.evidence), key=LADDER.index, default="unseen"
-        )
+        return max((e.kind for e in self.evidence), key=LADDER.index, default="unseen")
 
 
 class Knowledge(BaseModel):

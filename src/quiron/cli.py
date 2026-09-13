@@ -13,6 +13,7 @@ from .capture import scan_and_merge
 from .doctor import run as doctor_run
 from .evidence import add_evidence
 from .errors import QuironError
+from .history import append_events, make_event, operation_id as derive_operation_id
 from .inbox import Proposal, apply_proposals
 from .inputs import (
     EvidenceInput,
@@ -96,7 +97,12 @@ def cmd_inbox(args: argparse.Namespace) -> int:
     knowledge = load_knowledge(vault) or Knowledge()
     inputs = load_records(args.apply, ProposalInput, "inbox proposals")
     proposals = [Proposal(**p.model_dump()) for p in inputs]
-    knowledge, report = apply_proposals(vault, knowledge, proposals)
+    knowledge, report = apply_proposals(
+        vault,
+        knowledge,
+        proposals,
+        operation_id=getattr(args, "operation_id", None),
+    )
     save_knowledge(vault, knowledge)
 
     if args.json:
@@ -225,8 +231,26 @@ def cmd_cards(args: argparse.Namespace) -> int:
             args.record_review, ReviewProposalInput, "review proposals"
         )
         proposals = [audit.ReviewProposal(**p.model_dump()) for p in inputs]
+        op_id = getattr(args, "operation_id", None) or derive_operation_id(
+            "cards.record-review", [p.model_dump(mode="json") for p in inputs]
+        )
         review_report = audit.record_review(knowledge, proposals)
         save_knowledge(vault, knowledge)
+        append_events(
+            vault,
+            [
+                make_event(
+                    "card_reviewed",
+                    op_id,
+                    proposal.card_path,
+                    quality=proposal.quality,
+                    reviewer_verdict=proposal.reviewer_verdict,
+                    lapses_at_review=proposal.lapses_at_review,
+                )
+                for proposal in inputs
+                if proposal.card_path in review_report.recorded
+            ],
+        )
         if args.json:
             print(json.dumps(asdict(review_report), ensure_ascii=False, indent=2))
             return 0
@@ -261,8 +285,25 @@ def cmd_cards(args: argparse.Namespace) -> int:
     if args.set_policy:
         inputs = load_records(args.set_policy, PolicyDecisionInput, "policy decisions")
         decisions = [coverage.PolicyDecision(**d.model_dump()) for d in inputs]
+        op_id = getattr(args, "operation_id", None) or derive_operation_id(
+            "cards.set-policy", [d.model_dump(mode="json") for d in inputs]
+        )
         policy_report = coverage.set_policy(knowledge, decisions)
         save_knowledge(vault, knowledge)
+        decisions_by_slug = {decision.slug: decision for decision in inputs}
+        append_events(
+            vault,
+            [
+                make_event(
+                    "policy_decided",
+                    op_id,
+                    slug,
+                    card_policy=decisions_by_slug[slug].card_policy,
+                    declined_reason=decisions_by_slug[slug].declined_reason,
+                )
+                for slug in policy_report.decided
+            ],
+        )
         if args.json:
             print(json.dumps(asdict(policy_report), ensure_ascii=False, indent=2))
             return 0
@@ -352,12 +393,16 @@ def cmd_evidence(args: argparse.Namespace) -> int:
         EvidenceInput,
         "evidence input",
     )
+    op_id = getattr(args, "operation_id", None) or derive_operation_id(
+        "evidence.add", evidence.model_dump(mode="json")
+    )
     result = add_evidence(
         knowledge,
         card_path=evidence.card_path,
         kind=evidence.kind,
         ref=evidence.ref,
         scope=evidence.scope,
+        operation_id=op_id,
     )
     if result.slug is None:
         if args.json:
@@ -371,6 +416,20 @@ def cmd_evidence(args: argparse.Namespace) -> int:
         print("card not mapped to any concept — nothing recorded")
         return 0
     save_knowledge(vault, knowledge)
+    if result.changed:
+        append_events(
+            vault,
+            [
+                make_event(
+                    "evidence_added",
+                    op_id,
+                    evidence.card_path,
+                    slug=result.slug,
+                    kind=evidence.kind,
+                    ref=evidence.ref,
+                )
+            ],
+        )
     if args.json:
         print(
             json.dumps(
@@ -499,6 +558,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument(
         "--apply", required=True, help="path to a JSON list of classified proposals"
     )
+    sp.add_argument("--operation-id", help="stable key used to make a retry idempotent")
     sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_inbox)
 
@@ -536,6 +596,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="FILE",
         help="apply a JSON list of PolicyDecision — non-interactive counterpart to --decide, for a skill/agent to drive",
     )
+    sp.add_argument("--operation-id", help="stable key used to make a retry idempotent")
     sp.add_argument(
         "--json",
         action="store_true",
@@ -559,6 +620,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sp.add_argument("--ref", required=True)
     sp.add_argument("--scope")
+    sp.add_argument("--operation-id", help="stable key used to make a retry idempotent")
     sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_evidence)
 

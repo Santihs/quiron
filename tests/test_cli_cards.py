@@ -2,6 +2,7 @@ import json
 from unittest.mock import patch
 
 from quiron.cli import load_knowledge, main, save_knowledge
+from quiron.history import load_history
 from quiron.schema import CardRef, Concept, Knowledge
 from quiron.vault import Vault
 
@@ -28,7 +29,9 @@ def test_list_gaps(tmp_path, capsys):
 def test_decide_via_cli_persists(tmp_path, monkeypatch):
     (tmp_path / "00-Meta").mkdir()
     v = Vault(root=tmp_path)
-    save_knowledge(v, Knowledge(concepts=[Concept(slug="a", title="A", unit="phase-0")]))
+    save_knowledge(
+        v, Knowledge(concepts=[Concept(slug="a", title="A", unit="phase-0")])
+    )
 
     inputs = iter(["n"])
     monkeypatch.setattr("builtins.input", lambda: next(inputs))
@@ -130,7 +133,9 @@ def test_record_review_via_cli_persists(tmp_path):
         encoding="utf-8",
     )
 
-    rc = main(["cards", "--vault", str(tmp_path), "--record-review", str(proposals_path)])
+    rc = main(
+        ["cards", "--vault", str(tmp_path), "--record-review", str(proposals_path)]
+    )
     assert rc == 0
 
     k = load_knowledge(v)
@@ -148,7 +153,9 @@ def test_list_undecided_json(tmp_path, capsys):
         v,
         Knowledge(
             concepts=[
-                Concept(slug="a", title="A", unit="phase-0", notes_ref="02-Topics/a.md"),
+                Concept(
+                    slug="a", title="A", unit="phase-0", notes_ref="02-Topics/a.md"
+                ),
                 Concept(slug="b", title="B", unit="phase-0", card_policy="needed"),
             ]
         ),
@@ -176,7 +183,11 @@ def test_set_policy_via_cli_persists(tmp_path):
         json.dumps(
             [
                 {"slug": "a", "card_policy": "needed"},
-                {"slug": "b", "card_policy": "declined", "declined_reason": "no aplica"},
+                {
+                    "slug": "b",
+                    "card_policy": "declined",
+                    "declined_reason": "no aplica",
+                },
                 {"slug": "ghost", "card_policy": "needed"},
             ]
         ),
@@ -191,3 +202,29 @@ def test_set_policy_via_cli_persists(tmp_path):
     assert by_slug["a"].card_policy == "needed"
     assert by_slug["b"].card_policy == "declined"
     assert by_slug["b"].declined_reason == "no aplica"
+
+
+def test_set_policy_retry_writes_one_history_event(tmp_path):
+    (tmp_path / "00-Meta").mkdir()
+    v = Vault(root=tmp_path)
+    save_knowledge(
+        v, Knowledge(concepts=[Concept(slug="a", title="A", unit="phase-0")])
+    )
+    policy_path = tmp_path / "policy.json"
+    policy_path.write_text(
+        json.dumps([{"slug": "a", "card_policy": "needed"}]), encoding="utf-8"
+    )
+    argv = [
+        "cards",
+        "--vault",
+        str(tmp_path),
+        "--set-policy",
+        str(policy_path),
+        "--operation-id",
+        "op-1",
+    ]
+
+    assert main(argv) == 0
+    assert main(argv) == 0
+
+    assert [event["type"] for event in load_history(v)] == ["policy_decided"]

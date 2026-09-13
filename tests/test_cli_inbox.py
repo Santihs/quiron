@@ -141,3 +141,52 @@ def test_inbox_json_reports_apply_result(tmp_path, capsys):
     )
 
     assert json.loads(capsys.readouterr().out)["applied"] == ["abc123"]
+
+
+def test_inbox_reapplying_capture_is_idempotent(tmp_path):
+    v = _setup(tmp_path)
+    proposal = tmp_path / "proposals.json"
+    proposal.write_text(
+        json.dumps(
+            [
+                {
+                    "capture_id": "abc123",
+                    "kind": "duda",
+                    "target_slug": "x--y",
+                    "text": "por que Av=lambda*v conserva la direccion",
+                    "at": "2026-08-23",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert main(["inbox", "--vault", str(tmp_path), "--apply", str(proposal)]) == 0
+    assert main(["inbox", "--vault", str(tmp_path), "--apply", str(proposal)]) == 0
+
+    k = load_knowledge(v)
+    assert len(k.concepts[0].doubts) == 1
+
+
+def test_inbox_rejects_proposal_that_does_not_match_capture(tmp_path):
+    v = _setup(tmp_path)
+    proposal = tmp_path / "proposals.json"
+    proposal.write_text(
+        json.dumps(
+            [
+                {
+                    "capture_id": "abc123",
+                    "kind": "duda",
+                    "target_slug": "x--y",
+                    "text": "different text",
+                    "at": "2026-08-23",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert main(["inbox", "--vault", str(tmp_path), "--apply", str(proposal)]) == 0
+
+    k = load_knowledge(v)
+    assert k.concepts[0].doubts == []

@@ -52,6 +52,16 @@ def test_id_stable_across_calls():
     assert caps1[0].id == caps2[0].id
 
 
+def test_duplicate_callouts_get_distinct_ids_without_changing_first_id():
+    body = "> [!duda] texto identico\n> [!duda] texto identico\n"
+
+    caps = extract_captures(body, "log.md")
+
+    assert len(caps) == 2
+    assert caps[0].id == extract_captures("> [!duda] texto identico\n", "log.md")[0].id
+    assert caps[0].id != caps[1].id
+
+
 def test_scan_finds_captures_across_daily_logs(vault):
     caps = scan(vault)
     # fixtures/vault/03-Daily-Logs is empty by default in this fixture set
