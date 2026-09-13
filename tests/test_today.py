@@ -1,5 +1,6 @@
 from datetime import date
 
+from quiron.audit import AuditReport, Candidate
 from quiron.capture import write_inbox
 from quiron.schema import Concept, Doubt, Knowledge
 from quiron.today import build_report, doubt_age_state, render
@@ -105,6 +106,30 @@ def test_dangling_refs_render_red(tmp_path):
     lines = build_report(v, k, unresolved_refs=[("a.md", "ref")])
     assert lines[0].tier == "red"
     assert "1 tarjetas" in lines[0].text
+
+
+def test_audit_candidate_renders_red_with_reviewer_action(tmp_path):
+    from quiron.vault import Vault
+
+    v = Vault(root=tmp_path)
+    (tmp_path / "00-Meta").mkdir()
+    report = AuditReport(
+        candidates=[
+            Candidate(
+                card_path="04-Quiz-Bank/karpathy/x.md",
+                concept_slug="x",
+                reasons=["suspect_card"],
+                lapses=7,
+            )
+        ]
+    )
+
+    lines = build_report(v, Knowledge(), audit_report=report)
+
+    audit_lines = [l for l in lines if "suspect_card" in l.text]
+    assert len(audit_lines) == 1
+    assert audit_lines[0].tier == "red"
+    assert audit_lines[0].action == "/quiron-cards-audit"
 
 
 def test_render_includes_symbol_and_action():

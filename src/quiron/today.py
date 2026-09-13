@@ -12,6 +12,7 @@ from pathlib import Path
 from shlex import quote
 
 from . import coverage
+from .audit import AuditReport
 from .capture import load_inbox
 from .recall import Contradiction
 from .schema import Knowledge
@@ -52,6 +53,7 @@ def build_report(
     vault_path: Path | str | None = None,
     deck: str = "karpathy",
     anki_status: dict | None = None,
+    audit_report: AuditReport | None = None,
 ) -> list[Line]:
     today = today or date.today()
     lines: list[Line] = []
@@ -134,6 +136,18 @@ def build_report(
             Line(
                 tier="yellow",
                 text=f"Anki {anki_status['state']}: {anki_status.get('message', 'status unavailable')}",
+            )
+        )
+
+    for candidate in audit_report.candidates if audit_report else []:
+        reason = ", ".join(candidate.reasons)
+        if candidate.lapses is not None:
+            reason += f", {candidate.lapses} lapses"
+        lines.append(
+            Line(
+                tier="red",
+                text=f"{candidate.card_path} · {reason}",
+                action="/quiron-cards-audit",
             )
         )
 

@@ -134,12 +134,15 @@ def cmd_inbox(args: argparse.Namespace) -> int:
     return 0
 
 
+@_locked_command
 def cmd_today(args: argparse.Namespace) -> int:
     vault = Vault(root=Path(args.vault).resolve())
+    scan_and_merge(vault)
     knowledge = load_knowledge(vault) or Knowledge()
     doctor = doctor_run(vault, existing=knowledge, deck=args.deck)
 
     contradictions = []
+    notes_info = {}
     note_id_to_slug = recall.collect_note_ids(vault, knowledge)
     anki_status = {"state": "not_needed"}
     if note_id_to_slug:
@@ -162,6 +165,7 @@ def cmd_today(args: argparse.Namespace) -> int:
         # cards_info_by_note_id keys by note id already; recall expects the
         # same shape (noteId -> cardsInfo dict).
         contradictions = recall.cross_check(knowledge, note_id_to_slug, notes_info)
+    audit_report = audit.run(vault, knowledge, notes_info=notes_info, deck=args.deck)
 
     lines = build_report(
         vault,
@@ -171,6 +175,7 @@ def cmd_today(args: argparse.Namespace) -> int:
         vault_path=vault.root,
         deck=args.deck,
         anki_status=anki_status,
+        audit_report=audit_report,
     )
     print(render(lines))
     return 0

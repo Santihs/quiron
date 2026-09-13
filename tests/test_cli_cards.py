@@ -78,6 +78,45 @@ def test_today_survives_ankiconnect_unreachable(tmp_path, capsys):
     assert "factor" not in out
 
 
+def test_today_scans_new_daily_log_callouts(tmp_path, capsys):
+    (tmp_path / "00-Meta").mkdir()
+    (tmp_path / "03-Daily-Logs").mkdir()
+    v = Vault(root=tmp_path)
+    v.write_text(
+        tmp_path / "03-Daily-Logs" / "2026-09-12.md",
+        "> [!duda] por que funciona esto?\n",
+    )
+    save_knowledge(v, Knowledge())
+
+    with patch("quiron.doctor.ankiconnect.status", return_value={"state": "connected"}):
+        assert main(["today", "--vault", str(tmp_path)]) == 0
+
+    assert "1 capturas sin procesar" in capsys.readouterr().out
+    from quiron.capture import load_inbox
+
+    inbox = load_inbox(v)
+    assert len(inbox) == 1
+    assert inbox[0]["text"] == "por que funciona esto?"
+
+
+def test_today_includes_card_audit_candidates(tmp_path, capsys):
+    (tmp_path / "00-Meta").mkdir()
+    card_dir = tmp_path / "04-Quiz-Bank" / "karpathy"
+    card_dir.mkdir(parents=True)
+    v = Vault(root=tmp_path)
+    v.write_text(
+        card_dir / "too-long.md",
+        "Pregunta\n\n---\n\n" + " ".join(["palabra"] * 60) + "\n",
+    )
+
+    with patch("quiron.doctor.ankiconnect.status", return_value={"state": "connected"}):
+        assert main(["today", "--vault", str(tmp_path)]) == 0
+
+    out = capsys.readouterr().out
+    assert "too-long.md · too_long, unmapped_concept" in out
+    assert "/quiron-cards-audit" in out
+
+
 def test_audit_via_cli_json(tmp_path, capsys):
     (tmp_path / "00-Meta").mkdir()
     (tmp_path / "04-Quiz-Bank" / "karpathy").mkdir(parents=True)
