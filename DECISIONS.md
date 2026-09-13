@@ -53,7 +53,9 @@ committed) before writing `migrate.py` — confirmed rather than assumed.
 **Canonical shared workflow files are not protected by default.**
 `_skip_if_exists` protects `CLAUDE.md`, `AGENTS.md`,
 `03-Daily-Logs/_template.md`, the three `00-Meta/` seed files, and the
-vault-specific `quiz-me` and `quiz-reviewer` files. Other shared Quiron
+vault-specific `quiz-me` and `quiz-reviewer` files from whole-file replacement. The
+`migrate` command separately synchronizes a marked shared evidence block inside
+`quiz-me.md`, preserving the vault-specific extension around it. Other shared Quiron
 workflow files are meant to stay byte-identical to `templates/` modulo
 `{{ params }}` — that is the purpose of Fase 6 having a canonical source.
 A vault that needs a workflow to genuinely diverge (not just different

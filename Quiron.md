@@ -6,7 +6,7 @@
 > **Document status:** v7 design and historical roadmap. Written 2026-08-23.
 > v6 was the pivot (stop competing with Anki's scheduler; model concepts instead). v7 is the correction that makes v6 survivable: v6 had a good **data model** and no **interaction model** — it described a system that starts after the knowledge already exists, with four commands and no reason to open any of them. v7 adds capture, a single entry point, and turns `understanding` from a stored claim into a derived reading of recorded evidence.
 >
-> **Repository status:** package `0.1.0`, persisted model schema `v1`, and implementation through Fase 7. The phase descriptions and examples below preserve the original design intent; behavior that is not live is listed under **Pending gaps**.
+> **Repository status:** package `0.1.0`, persisted model schema `v2` (with an explicit v1 upgrade path), and implementation through Fase 7 plus the hardening pass. The phase descriptions and examples below preserve the original design intent; behavior that is not live is listed under **Pending gaps**.
 
 ---
 
@@ -16,12 +16,12 @@ The current repository exposes these command surfaces:
 
 - `capture-scan` discovers callouts and merges them into `00-Meta/inbox.jsonl`.
 - `inbox --apply FILE` applies already-classified proposals; classification stays in the `/quiron-inbox` skill.
-- `today` renders vault findings and an optional Anki recall contradiction check.
+- `today` scans new callouts, renders vault findings, runs the card audit, and performs an optional Anki recall contradiction check.
 - `cards --list-gaps`, `cards --decide`, `cards --list-undecided`, `cards --audit`, `cards --record-review`, and `cards --set-policy FILE` cover card-policy and card-quality workflows.
 - `evidence --add` records evidence explicitly, while `next` and `sources` query the persisted model.
 - `doctor` reports seed-resolution findings, and `migrate` scaffolds the shared Claude Code/OpenCode plumbing.
 
-`today` does not currently run the card audit or an Anki health check, and the vault-specific `/quiz-me` commands do not yet automatically write every evidence type described by the design. Those are pending gaps, not current guarantees.
+Migrated vault-specific `/quiz-me` commands now receive a managed handoff for `explained` evidence. Automatic conversion of `aplicado` captures into `applied` evidence remains a pending gap, not a current guarantee.
 
 ## What quiron is
 
@@ -95,7 +95,7 @@ Three callout types, scraped from `03-Daily-Logs/`. `duda` opens a `Doubt`. `con
 
 ### Capture and processing are different cognitive modes
 
-Capture asks **nothing**. Not which concept, not which source, not what type. `capture-scan` appends callouts to `00-Meta/inbox.jsonl` unclassified. Asking a question at capture time is exactly what breaks a study session. Automatic scanning from `today` is still pending.
+Capture asks **nothing**. Not which concept, not which source, not what type. `capture-scan` appends callouts to `00-Meta/inbox.jsonl` unclassified. Asking a question at capture time is exactly what breaks a study session. `today` now runs that scan automatically before rendering, while `capture-scan` remains available as an explicit operation.
 
 Processing happens when you choose `/quiron-inbox`:
 
@@ -216,11 +216,11 @@ You can hold `factor: 2300` in Anki (perfect recall) and sit at `encountered` wi
 
 ### `applied` needs a mechanism or it stays empty forever
 
-Look at where each rung comes from: `encountered` ← callouts and daily logs. `explained` ← a vault-specific `/quiz-me` extension, which this design redefines: it **produces** evidence (makes you explain, saves the explanation, writes the ref) rather than competing with Anki at presenting cards. The current shared core does not wire that evidence write automatically yet; see **Pending gaps**.
+Look at where each rung comes from: `encountered` ← callouts and daily logs. `explained` ← the shared `/quiz-me` handoff, which this design redefines: it **produces** evidence (makes you explain, saves the explanation, writes the ref) rather than competing with Anki at presenting cards. `quiron migrate` inserts or refreshes that handoff while preserving each vault's quiz extension.
 
 `applied` had **no producer** in v6. And it is both the top of the ladder and the input to the most interesting query in the system (source yield, below). If it depends on remembering to hand-edit JSON, it is empty forever and the best metric never has data.
 
-Hence the `> [!aplicado]` callout — same scraper, nothing new invented. The design calls for `doctor` to check the cited file exists; current `doctor` only reports seed-resolution findings, so that validation is pending.
+Hence the `> [!aplicado]` callout — same scraper, nothing new invented. `doctor` now checks that cited evidence and resolution files exist; converting the callout into `applied` evidence is still pending.
 
 ### `card_policy` — absence is a decision, not an error
 
@@ -436,9 +436,9 @@ quiron/
 └── history.jsonl          # NUEVO — transiciones append-only
 ```
 
-`knowledge.json` being a **new file** is the point: Fase 1 touches nothing that exists. Its root document includes `schema_version` (currently `1`) so a future migration can be explicit; no migration path beyond v1 is implemented yet.
+`knowledge.json` being a **new file** is the point: Fase 1 touches nothing that exists. Its root document includes `schema_version` (currently `2`), and the loader explicitly upgrades legacy v1 documents.
 
-`history.jsonl` is scaffolded in v7. The intended file records what `evidence[]` does not — doubts opened/resolved, cards flagged/fixed, and `card_policy` decisions — one line each, appended, never rewritten. Runtime history writes are still pending.
+`history.jsonl` records what `evidence[]` does not — doubts opened/resolved, cards flagged/fixed, and `card_policy` decisions — one line each, appended, never rewritten. Supported mutating CLI paths now append retry-safe events.
 
 ---
 
@@ -449,7 +449,7 @@ AnkiConnect **always returns HTTP 200** and puts failures in the body:
 {"result": null, "error": "collection is not available"}
 {"result": null, "error": "deck was not found: karpathy"}
 ```
-The intended behavior is to retry the first error while Anki is still starting and raise on the second. The current client raises on any error and does not classify or retry yet; this remains a pending gap.
+The client retries transient connection failures once while Anki is still starting, raises on the second failure, and does not retry permanent Anki body errors.
 
 General rule for reading user data: no `.get(key, default)` swallowing a missing field — direct indexing, or an explicit assert with a message. Both vaults have already produced one silent-failure bug each (`notifier/remind.py`'s fallbacks; a skill referencing a deleted `viz_html.py`).
 
@@ -471,7 +471,7 @@ Reordered in v7: **capture first.** Coverage is the more impressive demo, but ca
 `audit.py` (layers 1+2), persist `quality` / `reviewed_at` / `reviewer_verdict` / `lapses_at_review`. `harvard-reviewer` unchanged in its logic; the dispatch now names *which* cards and *why*.
 
 **Fase 4 — evidence at full depth.**
-The evidence API, `quiron next`, and `quiron sources` are live. Automatic `/quiz-me` wiring for `explained` evidence and end-to-end processing of `> [!aplicado]` into `applied` evidence remain pending.
+The evidence API, `quiron next`, and `quiron sources` are live. Migrated `/quiz-me` commands now include the shared `explained` evidence handoff; end-to-end processing of `> [!aplicado]` into `applied` evidence remains pending.
 
 **Fase 5 — second vault: devtalles.** The real generalization test, already sitting there: 187 lessons, 45 cards, an ordered `sections[]` array with no `meta` block — structurally incompatible with karpathy on purpose. If the model survives devtalles unchanged, it generalizes; if not, the fix costs one file, not a rebuild. (Replaces the earlier plan's speculative "3rd vault" — a vault the same author builds to a schema they just designed is confirmation, not validation.)
 
@@ -489,14 +489,8 @@ These items are intentionally documented as pending. The current update aligns
 the documentation with the implementation; it does not implement these
 features:
 
-- `/quiz-me` does not automatically append `explained` evidence with a real `ref` in every vault-specific command.
 - An `> [!aplicado]` capture is not converted to `applied` evidence without a classified proposal and the inbox apply step.
-- `today` does not run the card audit or automatically scan new daily-log callouts before rendering.
-- `doctor` does not yet validate that every evidence `ref` is non-empty and points to an existing file, report missing prerequisite slugs, or report Anki connectivity.
-- `AnkiConnect` does not yet distinguish transient from permanent body errors or retry transient failures.
-- `history.jsonl` is scaffolded, but runtime code does not append transition records.
-- A missing prerequisite slug is currently treated as satisfied by `next`; integrity reporting for that case is pending.
-- `Evidence.ref` is required as a field, but empty-string and path-existence validation are not enforced.
+- `Evidence.ref` is required and non-empty at model construction time, and `doctor` reports missing referenced files; semantic validation of evidence content remains outside the deterministic core.
 - Test fixtures still contain legacy frontmatter such as `confidence`; it is not a field in the persisted `Knowledge` model.
 
 The deferred modeling decisions in `DECISIONS.md` — addressable scopes,
@@ -508,10 +502,10 @@ well.
 ## Honest risks
 
 - **The processing bottleneck is real, not solved by assertion.** Bulk-approve and a dirty-tolerant inbox are the design answer; whether they suffice is an empirical question Fase 1 answers within two weeks. If `quiron inbox` becomes a chore, the capture premise fails, and the honest response is to cut processing entirely and let callouts stay raw text.
-- **Three external dependencies on the critical path** — Anki desktop, the AnkiConnect addon (community-maintained, historically breaks on Anki updates), the yanki plugin. `doctor.py` currently diagnoses vault findings only; Anki outage reporting and a documented degraded mode are still missing. Mitigating: capture, coverage, doubts and source yield all work with Anki closed — only the layer-2 cross-signal needs it.
+- **Three external dependencies on the critical path** — Anki desktop, the AnkiConnect addon (community-maintained, historically breaks on Anki updates), the yanki plugin. `doctor.py` and `today` now report Anki availability and degrade the layer-2 cross-signal when Anki is closed. Capture, coverage, doubts and source yield still work without Anki.
 - ~~Obsidian is required for sync, not optional.~~ **Corrected 2026-08-29**: `yanki` is a headless npm CLI (`npx yanki sync <dir>`), not an Obsidian-only plugin — verified live against claude-devtalles (`--dry-run` then real sync, 14 notes created, matched the existing vault's namespace via `--namespace "Obsidian - Vault ID <id>"` read off an already-synced note's `YankiNamespace` field first). `.obsidian/**` still isn't templated and the vault-ID namespace still can't be fabricated for a vault that's never been opened in Obsidian at least once — but once it exists, every subsequent sync is scriptable. See `quiron-anki-sync` skill.
 - **Prompt behavior is prompt + model; only the prompt is versioned.** When the model changes, the same `quiz-me.md` may grade harder or softer and nothing detects it. Record the model version alongside any fixture result so drift has a baseline to contradict. Now applies to the inbox classifier too.
-- **Evidence is enforceable; its quality is not.** A non-empty, existing ref is intended to prove where evidence came from, not that the explanation is correct. The current schema only requires the ref field; path validation is pending. That's the reviewer's job, and the reviewer is itself a model. Layered defenses, not a proof.
+- **Evidence is enforceable; its quality is not.** A non-empty, existing ref is intended to prove where evidence came from, not that the explanation is correct. That's the reviewer's job, and the reviewer is itself a model. Layered defenses, not a proof.
 - **Narrow moat as a public product.** Card generation with LLMs is commoditized; sync is solved by yanki; agent-operates-a-vault has an 11k★ incumbent (`claude-obsidian`). The unclaimed piece is exactly this knowledge/quality layer — and every prior AI+Anki+Obsidian project found is abandoned (2023, 2024, Apr 2025); the survivors are pure plumbing. As personal infrastructure this is a sound bet; as a public product, thin.
 - **Anki MCP servers evaluated and rejected** (2026-08-23): none official (`ankimcp`'s MCP-registry listing is self-publication, not endorsement), the only live one is 11 months old with 227/230 commits from one person, and **none exposes per-card stats** — only deck-level aggregates, which is precisely what layer 2 needs. For cron/CI strictly worse than a direct POST to `127.0.0.1:8765`. Optional complement later; never a dependency.
 
@@ -529,17 +523,17 @@ The following checks describe behavior that is currently implemented:
 - Doubt age is rendered as fresh, stale, or neglected using the 14-day and 30-day thresholds.
 - `quiron cards --vault <vault> --audit` combines static card checks with the optional Anki lapse signal.
 - A dangling `Ref:` is reported by `doctor.py` as a seed-resolution finding.
+- `today` automatically scans callouts, runs the card audit, and reports degraded Anki connectivity without failing the command.
+- `doctor.py` reports missing card/evidence/resolution references, unknown prerequisites, duplicate card paths, and Anki connectivity.
+- AnkiConnect retries transient transport failures once and does not retry permanent body errors.
+- Supported mutating CLI operations append idempotent transition events to `history.jsonl`.
 - `quiron sources --vault <vault>` derives its table from persisted source and evidence fields.
 - Nothing in `knowledge.json` duplicates Anki scheduling fields. `lapses_at_review` is a reviewer-audit snapshot, not a scheduling input.
 
 The following are pending acceptance checks rather than current guarantees:
 
-- A new daily-log callout appearing in `quiron today` without a preceding `capture-scan`.
-- Automatic `/quiz-me` writes for `explained` evidence and automatic applied-callout writes for `applied` evidence.
-- `AnkiConnect` retry behavior for transient errors and Anki connectivity reporting from `doctor`.
-- Evidence-reference existence checks, missing-prerequisite diagnostics, and runtime `history.jsonl` writes.
+- Automatic applied-callout writes for `applied` evidence.
 - A complete under-a-minute inbox workflow with default acceptance across vaults.
 
-**Current next action:** use the pending-gaps list as the backlog for a separate
-implementation task. This documentation update does not claim those checks
-pass.
+**Current next action:** use the remaining pending-gaps list as the backlog for the
+next implementation task.
