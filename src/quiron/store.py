@@ -85,8 +85,9 @@ def vault_lock(vault: Vault, timeout: float = LOCK_TIMEOUT_SECONDS) -> Iterator[
             if os.name == "nt":
                 import msvcrt
 
+                msvcrt_api = cast(Any, msvcrt)
                 handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                msvcrt_api.locking(handle.fileno(), msvcrt_api.LK_UNLCK, 1)
             else:
                 import fcntl
 
@@ -96,6 +97,7 @@ def vault_lock(vault: Vault, timeout: float = LOCK_TIMEOUT_SECONDS) -> Iterator[
 def _lock_windows(handle, timeout: float) -> None:
     import msvcrt
 
+    msvcrt_api = cast(Any, msvcrt)
     handle.seek(0, os.SEEK_END)
     if handle.tell() == 0:
         handle.write(b"0")
@@ -104,7 +106,7 @@ def _lock_windows(handle, timeout: float) -> None:
     while True:
         handle.seek(0)
         try:
-            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            msvcrt_api.locking(handle.fileno(), msvcrt_api.LK_NBLCK, 1)
             return
         except OSError:
             if time.monotonic() >= deadline:
