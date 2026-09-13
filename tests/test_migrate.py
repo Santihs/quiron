@@ -1,3 +1,5 @@
+import pytest
+
 from quiron.migrate import run_migrate
 
 ANSWERS = {
@@ -81,9 +83,29 @@ def test_run_migrate_dry_run_writes_nothing(tmp_path):
     vault_path = tmp_path / "vault"
     report = run_migrate(vault_path, ANSWERS, dry_run=True)
 
+    assert not vault_path.exists()
     assert not (vault_path / "00-Meta" / "knowledge.json").exists()
     assert report.seed_report is None
     assert report.doctor_report is None
+    assert any(line.startswith("create ") for line in report.copier_output)
+
+
+def test_run_migrate_validates_existing_knowledge_before_copy(tmp_path, monkeypatch):
+    vault_path = tmp_path / "vault"
+    vault_path.mkdir()
+    (vault_path / "README.md").write_text("existing", encoding="utf-8")
+    (vault_path / "00-Meta").mkdir()
+    (vault_path / "00-Meta" / "knowledge.json").write_text("not json", encoding="utf-8")
+
+    def fail_copy(**kwargs):
+        raise AssertionError("copier should not run")
+
+    monkeypatch.setattr("quiron.migrate.copier.run_copy", fail_copy)
+
+    from quiron.errors import QuironError
+
+    with pytest.raises(QuironError, match="knowledge.json is invalid"):
+        run_migrate(vault_path, ANSWERS, dry_run=False)
 
 
 def test_run_migrate_skip_if_exists_protects_hand_authored_files(tmp_path):

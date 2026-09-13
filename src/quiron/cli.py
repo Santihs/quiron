@@ -360,10 +360,9 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0
 
 
-@_locked_command
 def cmd_migrate(args: argparse.Namespace) -> int:
     vault_path = Path(args.vault).resolve()
-    is_existing = (vault_path / "00-Meta" / "knowledge.json").exists()
+    is_existing = vault_path.exists() and any(vault_path.iterdir())
     if args.dry_run is None:
         dry_run = (
             is_existing  # existing vault: safe by default; new vault: nothing to lose
@@ -379,6 +378,18 @@ def cmd_migrate(args: argparse.Namespace) -> int:
         "domain_framing": args.domain_framing,
     }
     report = run_migrate(vault_path, answers, dry_run=dry_run, deck=args.deck)
+
+    if args.json:
+        result = {
+            "status": "dry_run" if dry_run else "ok",
+            "changes": report.copier_output,
+        }
+        if report.seed_report is not None:
+            result["seed"] = asdict(report.seed_report)
+        if report.doctor_report is not None:
+            result["doctor"] = asdict(report.doctor_report)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
 
     if dry_run:
         print("dry run — nothing written (pass --dry-run=false to apply)")
@@ -678,6 +689,7 @@ def build_parser() -> argparse.ArgumentParser:
         "existing vault (has 00-Meta/knowledge.json already) and off for a new "
         "one. Pass --dry-run=false to force apply.",
     )
+    sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_migrate)
 
     for name, fn in (("next", cmd_next), ("sources", cmd_sources)):

@@ -9,6 +9,7 @@ skill/agent/command files and the 00-Meta/ seed files.
 
 from __future__ import annotations
 
+import fnmatch
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -16,9 +17,11 @@ import copier
 
 from .doctor import DoctorReport
 from .doctor import run as doctor_run
+from .errors import QuironError
 from .schema import Knowledge
 from .seed import SeedReport
 from .seed import seed as seed_run
+from .store import vault_lock
 from .vault import Vault
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
@@ -44,7 +47,29 @@ def run_migrate(
     `00-Meta/knowledge.json` (something to lose); a brand-new vault has
     nothing to lose and can apply directly.
     """
-    vault_path.mkdir(parents=True, exist_ok=True)
+    if dry_run:
+        return _run_migrate(vault_path, answers, dry_run=True, deck=deck)
+    with vault_lock(Vault(root=vault_path)):
+        return _run_migrate(vault_path, answers, dry_run=False, deck=deck)
+
+
+def _run_migrate(
+    vault_path: Path, answers: dict, dry_run: bool, deck: str
+) -> MigrateReport:
+    report = MigrateReport()
+    knowledge_path = vault_path / "00-Meta" / "knowledge.json"
+    if knowledge_path.exists():
+        try:
+            Knowledge.model_validate_json(knowledge_path.read_text(encoding="utf-8"))
+        except ValueError as exc:
+            raise QuironError(
+                "INVALID_KNOWLEDGE",
+                f"knowledge.json is invalid: {knowledge_path}",
+                exit_code=4,
+                details={"path": str(knowledge_path)},
+            ) from exc
+
+    report.copier_output = _planned_output(vault_path)
     copier.run_copy(
         src_path=str(TEMPLATES_DIR),
         dst_path=str(vault_path),
@@ -55,7 +80,6 @@ def run_migrate(
         overwrite=True,
         pretend=dry_run,
     )
-    report = MigrateReport()
     if dry_run:
         return report
 
@@ -69,3 +93,37 @@ def run_migrate(
     report.seed_report = seed_report
     report.doctor_report = doctor_run(vault, existing=result, deck=deck)
     return report
+
+
+def _planned_output(vault_path: Path) -> list[str]:
+    """Return a stable create/update/skip preview without touching the vault."""
+    skip_patterns = [
+        "CLAUDE.md",
+        "AGENTS.md",
+        "03-Daily-Logs/_template.md",
+        "00-Meta/knowledge.json",
+        "00-Meta/inbox.jsonl",
+        "00-Meta/history.jsonl",
+        ".claude/commands/quiz-me.md",
+        ".opencode/commands/quiz-me.md",
+        ".claude/agents/quiz-reviewer.md",
+        ".claude/skills/quiz-review/SKILL.md",
+        ".opencode/agents/quiz-reviewer.md",
+        ".opencode/skills/quiz-review/SKILL.md",
+    ]
+    output: list[str] = []
+    for source in sorted(TEMPLATES_DIR.rglob("*")):
+        if not source.is_file():
+            continue
+        relative = source.relative_to(TEMPLATES_DIR).as_posix()
+        if relative in {"copier.yml", "README.md"} or relative.startswith("_shared/"):
+            continue
+        destination = vault_path / relative
+        if any(fnmatch.fnmatch(relative, pattern) for pattern in skip_patterns):
+            action = "skip" if destination.exists() else "create"
+        elif destination.exists():
+            action = "update"
+        else:
+            action = "create"
+        output.append(f"{action} {relative}")
+    return output

@@ -1,3 +1,5 @@
+import json
+
 from quiron.cli import main
 
 
@@ -69,3 +71,25 @@ def test_migrate_existing_vault_defaults_to_dry_run(tmp_path, capsys):
     ).read_text(encoding="utf-8")
     assert "v1" in opencode_reviewer
     assert "v2" not in opencode_reviewer
+
+
+def test_migrate_nonempty_vault_without_knowledge_defaults_to_dry_run(tmp_path, capsys):
+    vault_path = tmp_path / "vault"
+    vault_path.mkdir()
+    (vault_path / "README.md").write_text("hand authored", encoding="utf-8")
+
+    rc = main(["migrate", "--vault", str(vault_path)])
+
+    assert rc == 0
+    assert "dry run" in capsys.readouterr().out
+    assert not (vault_path / "00-Meta" / "knowledge.json").exists()
+
+
+def test_migrate_json_reports_plan(tmp_path, capsys):
+    vault_path = tmp_path / "vault"
+
+    assert main(["migrate", "--vault", str(vault_path), "--dry-run", "--json"]) == 0
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "dry_run"
+    assert any(line.startswith("create ") for line in result["changes"])
