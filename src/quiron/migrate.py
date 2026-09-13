@@ -25,6 +25,13 @@ from .store import vault_lock
 from .vault import Vault
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
+QUIZ_ME_PATHS = (
+    ".claude/commands/quiz-me.md",
+    ".opencode/commands/quiz-me.md",
+)
+QUIZ_ME_EVIDENCE_PATH = TEMPLATES_DIR / "_shared" / "commands" / "quiz-me-evidence.md"
+QUIZ_ME_EVIDENCE_START = "<!-- quiron:shared-quiz-me-evidence:start -->"
+QUIZ_ME_EVIDENCE_END = "<!-- quiron:shared-quiz-me-evidence:end -->"
 
 
 @dataclass
@@ -83,6 +90,8 @@ def _run_migrate(
     if dry_run:
         return report
 
+    _sync_quiz_me_evidence(vault_path)
+
     vault = Vault(root=vault_path)
     existing = None
     knowledge_path = vault.path("00-Meta", "knowledge.json")
@@ -93,6 +102,46 @@ def _run_migrate(
     report.seed_report = seed_report
     report.doctor_report = doctor_run(vault, existing=result, deck=deck)
     return report
+
+
+def _quiz_me_evidence_block() -> str:
+    return QUIZ_ME_EVIDENCE_PATH.read_text(encoding="utf-8").strip()
+
+
+def _replace_quiz_me_evidence(text: str, block: str) -> str:
+    start = text.find(QUIZ_ME_EVIDENCE_START)
+    if start < 0:
+        if "quiron evidence --add" in text:
+            return text
+        return text.rstrip() + "\n\n" + block + "\n"
+
+    end = text.find(QUIZ_ME_EVIDENCE_END, start)
+    if end < 0:
+        return text.rstrip() + "\n\n" + block + "\n"
+    end += len(QUIZ_ME_EVIDENCE_END)
+    return text[:start] + block + text[end:]
+
+
+def _sync_quiz_me_evidence(vault_path: Path) -> None:
+    vault = Vault(root=vault_path)
+    block = _quiz_me_evidence_block()
+    for relative in QUIZ_ME_PATHS:
+        path = vault.path(*relative.split("/"))
+        if not path.exists():
+            continue
+        original = vault.read_text(path)
+        updated = _replace_quiz_me_evidence(original, block)
+        if updated != original:
+            vault.write_text(path, updated)
+
+
+def _quiz_me_needs_sync(path: Path) -> bool:
+    if not path.exists():
+        return False
+    text = path.read_text(encoding="utf-8")
+    if "quiron evidence --add" in text and QUIZ_ME_EVIDENCE_START not in text:
+        return False
+    return _replace_quiz_me_evidence(text, _quiz_me_evidence_block()) != text
 
 
 def _planned_output(vault_path: Path) -> list[str]:
@@ -119,7 +168,9 @@ def _planned_output(vault_path: Path) -> list[str]:
         if relative in {"copier.yml", "README.md"} or relative.startswith("_shared/"):
             continue
         destination = vault_path / relative
-        if any(fnmatch.fnmatch(relative, pattern) for pattern in skip_patterns):
+        if relative in QUIZ_ME_PATHS and destination.exists():
+            action = "update" if _quiz_me_needs_sync(destination) else "skip"
+        elif any(fnmatch.fnmatch(relative, pattern) for pattern in skip_patterns):
             action = "skip" if destination.exists() else "create"
         elif destination.exists():
             action = "update"

@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import patch
 
 from quiron.migrate import run_migrate
 
@@ -43,6 +44,12 @@ def test_run_migrate_scaffolds_new_vault(tmp_path):
     )
     assert "test subject" in reviewer_agent
     assert "{{" not in reviewer_agent
+
+    quiz_me = (vault_path / ".claude" / "commands" / "quiz-me.md").read_text(
+        encoding="utf-8"
+    )
+    assert "<!-- quiron:shared-quiz-me-evidence:start -->" in quiz_me
+    assert "quiron evidence --add" in quiz_me
 
     opencode_review_skill = (
         vault_path / ".opencode" / "skills" / "quiz-review" / "SKILL.md"
@@ -152,3 +159,50 @@ def test_run_migrate_skip_if_exists_protects_hand_authored_files(tmp_path):
     assert "not applicable" in opencode_review_skill
 
     assert original_knowledge  # sanity: it existed before the second run too
+
+
+def test_run_migrate_updates_shared_quiz_me_block_only(tmp_path):
+    vault_path = tmp_path / "vault"
+    for tool in (".claude", ".opencode"):
+        command = vault_path / tool / "commands" / "quiz-me.md"
+        command.parent.mkdir(parents=True)
+        command.write_text(
+            f"# /quiz-me\n\n{tool} custom quiz extension\n", encoding="utf-8"
+        )
+
+    with patch("quiron.doctor.ankiconnect.status", return_value={"state": "connected"}):
+        run_migrate(vault_path, ANSWERS)
+
+    start = "<!-- quiron:shared-quiz-me-evidence:start -->"
+    end = "<!-- quiron:shared-quiz-me-evidence:end -->"
+    for tool in (".claude", ".opencode"):
+        content = (vault_path / tool / "commands" / "quiz-me.md").read_text(
+            encoding="utf-8"
+        )
+        assert f"{tool} custom quiz extension" in content
+        assert content.count(start) == 1
+        assert content.count(end) == 1
+        assert "quiron evidence --add" in content
+
+    with patch("quiron.doctor.ankiconnect.status", return_value={"state": "connected"}):
+        run_migrate(vault_path, ANSWERS)
+
+    for tool in (".claude", ".opencode"):
+        content = (vault_path / tool / "commands" / "quiz-me.md").read_text(
+            encoding="utf-8"
+        )
+        assert content.count(start) == 1
+        assert content.count(end) == 1
+
+
+def test_run_migrate_dry_run_reports_quiz_me_sync_without_writing(tmp_path):
+    vault_path = tmp_path / "vault"
+    command = vault_path / ".claude" / "commands" / "quiz-me.md"
+    command.parent.mkdir(parents=True)
+    original = "# /quiz-me\n\ncustom extension\n"
+    command.write_text(original, encoding="utf-8")
+
+    report = run_migrate(vault_path, ANSWERS, dry_run=True)
+
+    assert "update .claude/commands/quiz-me.md" in report.copier_output
+    assert command.read_text(encoding="utf-8") == original

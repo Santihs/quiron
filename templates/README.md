@@ -17,9 +17,10 @@ vault files contain the fully rendered workflow but not the source-only partials
 `.opencode/skills/quiron-init/SKILL.md`) wraps `copier` against this directory. It fills in
 `{{ params }}`, skips files a vault has hand-authored (`_skip_if_exists` in `copier.yml`:
 `CLAUDE.md`, `AGENTS.md`, `03-Daily-Logs/_template.md`, the three `00-Meta/` seed files, and the
-vault-owned quiz/reviewer files that carry card-format knowledge), and defaults to a dry-run
-whenever the target vault already has a `00-Meta/knowledge.json` — pass `--dry-run=false` to
-apply. Shared plumbing under `.claude/` and `.opencode/` is maintained here; a skill that needs
+vault-owned quiz/reviewer files that carry card-format knowledge), while merging the managed
+shared evidence block into `quiz-me.md`. It defaults to a dry-run whenever the target vault
+already has a `00-Meta/knowledge.json` — pass `--dry-run=false` to apply. Shared plumbing under
+`.claude/` and `.opencode/` is maintained here; a skill that needs
 to genuinely diverge (not just different params) doesn't belong here at all — see
 `DECISIONS.md`'s Fase 6 entry on `session-close`/`wrap-up`.
 

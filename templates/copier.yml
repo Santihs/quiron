@@ -22,10 +22,9 @@ _skip_if_exists:
   - "00-Meta/inbox.jsonl"
   - "00-Meta/history.jsonl"
   # quiz-me.md is NOT byte-identical-modulo-params like the skills/agent
-  # files -- it's a shared core with a vault-specific extension layered on
-  # top (Anki deck, self-explain, evidence wiring). Overwriting it here
-  # would destroy that extension. Confirmed against karpathy-path's real
-  # file during Fase 7 dry-run testing -- see DECISIONS.md.
+  # files -- it has a vault-specific extension layered on top (Anki deck,
+  # self-explain, card format). The migrate command preserves the whole file
+  # and synchronizes only its managed shared evidence block.
   - ".claude/commands/quiz-me.md"
   - ".opencode/commands/quiz-me.md"
   # quiz-reviewer.md and quiz-review/SKILL.md carry real card-format
