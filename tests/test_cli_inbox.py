@@ -69,3 +69,75 @@ def test_inbox_apply_skip_leaves_unprocessed(tmp_path):
 
     inbox = load_inbox(v)
     assert inbox[0]["processed"] is False
+
+
+def test_inbox_rejects_invalid_batch_without_writing(tmp_path, capsys):
+    v = _setup(tmp_path)
+    before_knowledge = load_knowledge(v).model_dump()
+    before_inbox = v.read_text(v.path("00-Meta", "inbox.jsonl"))
+    proposals_path = tmp_path / "proposals.json"
+    proposals_path.write_text(
+        json.dumps(
+            [
+                {
+                    "capture_id": "abc123",
+                    "kind": "duda",
+                    "target_slug": "x--y",
+                    "text": "q",
+                    "at": "2026-08-23",
+                },
+                {
+                    "capture_id": "bad",
+                    "kind": "unknown",
+                    "target_slug": "x--y",
+                    "text": "q",
+                    "at": "2026-08-23",
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    rc = main(
+        ["inbox", "--vault", str(tmp_path), "--apply", str(proposals_path), "--json"]
+    )
+
+    assert rc == 3
+    assert json.loads(capsys.readouterr().out)["code"] == "INVALID_INPUT"
+    assert load_knowledge(v).model_dump() == before_knowledge
+    assert v.read_text(v.path("00-Meta", "inbox.jsonl")) == before_inbox
+
+
+def test_inbox_json_reports_apply_result(tmp_path, capsys):
+    v = _setup(tmp_path)
+    proposals_path = tmp_path / "proposals.json"
+    proposals_path.write_text(
+        json.dumps(
+            [
+                {
+                    "capture_id": "abc123",
+                    "kind": "duda",
+                    "target_slug": "x--y",
+                    "text": "por que Av=lambda*v conserva la direccion",
+                    "at": "2026-08-23",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "inbox",
+                "--vault",
+                str(tmp_path),
+                "--apply",
+                str(proposals_path),
+                "--json",
+            ]
+        )
+        == 0
+    )
+
+    assert json.loads(capsys.readouterr().out)["applied"] == ["abc123"]

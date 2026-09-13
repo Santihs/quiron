@@ -14,6 +14,14 @@ from .doctor import run as doctor_run
 from .evidence import add_evidence
 from .errors import QuironError
 from .inbox import Proposal, apply_proposals
+from .inputs import (
+    EvidenceInput,
+    PolicyDecisionInput,
+    ProposalInput,
+    ReviewProposalInput,
+    load_records,
+    validate_record,
+)
 from .migrate import run_migrate
 from .schema import Knowledge
 from .seed import seed as seed_run
@@ -29,33 +37,20 @@ def load_knowledge(vault: Vault) -> Knowledge | None:
     p = _knowledge_path(vault)
     if not p.exists():
         return None
-    return Knowledge.model_validate_json(vault.read_text(p))
+    try:
+        return Knowledge.model_validate_json(vault.read_text(p))
+    except ValueError as exc:
+        raise QuironError(
+            "INVALID_KNOWLEDGE",
+            f"knowledge.json is invalid: {p}",
+            exit_code=4,
+            details={"path": str(p)},
+        ) from exc
 
 
 def save_knowledge(vault: Vault, knowledge: Knowledge) -> None:
     p = _knowledge_path(vault)
     vault.write_text(p, knowledge.model_dump_json(indent=2) + "\n")
-
-
-def _load_json_records(path: str, label: str) -> list[dict]:
-    try:
-        value = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise QuironError(
-            "INVALID_INPUT",
-            f"{label} must be a readable JSON array: {path}",
-            exit_code=3,
-            details={"path": path},
-        ) from exc
-
-    if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
-        raise QuironError(
-            "INVALID_INPUT",
-            f"{label} must be a JSON array of objects: {path}",
-            exit_code=3,
-            details={"path": path},
-        )
-    return value
 
 
 def cmd_seed(args: argparse.Namespace) -> int:
@@ -99,11 +94,14 @@ def cmd_capture_scan(args: argparse.Namespace) -> int:
 def cmd_inbox(args: argparse.Namespace) -> int:
     vault = Vault(root=Path(args.vault).resolve())
     knowledge = load_knowledge(vault) or Knowledge()
-    raw = json.loads(Path(args.apply).read_text(encoding="utf-8"))
-    proposals = [Proposal(**p) for p in raw]
+    inputs = load_records(args.apply, ProposalInput, "inbox proposals")
+    proposals = [Proposal(**p.model_dump()) for p in inputs]
     knowledge, report = apply_proposals(vault, knowledge, proposals)
     save_knowledge(vault, knowledge)
 
+    if args.json:
+        print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
+        return 0
     print(f"applied: {len(report.applied)}")
     if report.skipped_no_target:
         print(f"skipped (no target_slug): {len(report.skipped_no_target)}")
@@ -223,16 +221,10 @@ def cmd_cards(args: argparse.Namespace) -> int:
         return 0
 
     if args.record_review:
-        raw = _load_json_records(args.record_review, "review proposals")
-        try:
-            proposals = [audit.ReviewProposal(**p) for p in raw]
-        except TypeError as exc:
-            raise QuironError(
-                "INVALID_INPUT",
-                f"review proposals have an invalid shape: {args.record_review}",
-                exit_code=3,
-                details={"path": args.record_review},
-            ) from exc
+        inputs = load_records(
+            args.record_review, ReviewProposalInput, "review proposals"
+        )
+        proposals = [audit.ReviewProposal(**p.model_dump()) for p in inputs]
         review_report = audit.record_review(knowledge, proposals)
         save_knowledge(vault, knowledge)
         if args.json:
@@ -267,16 +259,8 @@ def cmd_cards(args: argparse.Namespace) -> int:
         return 0
 
     if args.set_policy:
-        raw = _load_json_records(args.set_policy, "policy decisions")
-        try:
-            decisions = [coverage.PolicyDecision(**d) for d in raw]
-        except TypeError as exc:
-            raise QuironError(
-                "INVALID_INPUT",
-                f"policy decisions have an invalid shape: {args.set_policy}",
-                exit_code=3,
-                details={"path": args.set_policy},
-            ) from exc
+        inputs = load_records(args.set_policy, PolicyDecisionInput, "policy decisions")
+        decisions = [coverage.PolicyDecision(**d.model_dump()) for d in inputs]
         policy_report = coverage.set_policy(knowledge, decisions)
         save_knowledge(vault, knowledge)
         if args.json:
@@ -358,17 +342,48 @@ def cmd_migrate(args: argparse.Namespace) -> int:
 def cmd_evidence(args: argparse.Namespace) -> int:
     vault = Vault(root=Path(args.vault).resolve())
     knowledge = load_knowledge(vault) or Knowledge()
+    evidence = validate_record(
+        {
+            "card_path": args.card,
+            "kind": args.kind,
+            "ref": args.ref,
+            "scope": args.scope,
+        },
+        EvidenceInput,
+        "evidence input",
+    )
     result = add_evidence(
         knowledge,
-        card_path=args.card,
-        kind=args.kind,
-        ref=args.ref,
-        scope=args.scope,
+        card_path=evidence.card_path,
+        kind=evidence.kind,
+        ref=evidence.ref,
+        scope=evidence.scope,
     )
     if result.slug is None:
+        if args.json:
+            print(
+                json.dumps(
+                    {"status": "skipped", "code": "UNMAPPED_CARD"},
+                    ensure_ascii=False,
+                )
+            )
+            return 0
         print("card not mapped to any concept — nothing recorded")
         return 0
     save_knowledge(vault, knowledge)
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "slug": result.slug,
+                    "concept_title": result.concept_title,
+                    "kind": evidence.kind,
+                },
+                ensure_ascii=False,
+            )
+        )
+        return 0
     print(f"{result.slug}: {args.kind} evidence added ({result.concept_title})")
     return 0
 
@@ -484,6 +499,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument(
         "--apply", required=True, help="path to a JSON list of classified proposals"
     )
+    sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_inbox)
 
     sp = sub.add_parser("cards")
@@ -543,6 +559,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sp.add_argument("--ref", required=True)
     sp.add_argument("--scope")
+    sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_evidence)
 
     sp = sub.add_parser("migrate")
