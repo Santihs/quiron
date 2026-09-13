@@ -206,3 +206,24 @@ def test_run_migrate_dry_run_reports_quiz_me_sync_without_writing(tmp_path):
 
     assert "update .claude/commands/quiz-me.md" in report.copier_output
     assert command.read_text(encoding="utf-8") == original
+
+
+def test_run_migrate_templates_only_preserves_knowledge(tmp_path):
+    vault_path = tmp_path / "vault"
+    knowledge_path = vault_path / "00-Meta" / "knowledge.json"
+    knowledge_path.parent.mkdir(parents=True)
+    original = (
+        '{"schema_version":2,"concepts":[{"slug":"x","title":"X",'
+        '"unit":"u","card_refs":[{"path":"04-Quiz-Bank/legacy.md"}]}]}\n'
+    )
+    knowledge_path.write_text(original, encoding="utf-8")
+
+    report = run_migrate(vault_path, ANSWERS, templates_only=True)
+
+    assert report.seed_report is None
+    assert report.doctor_report is None
+    assert knowledge_path.read_text(encoding="utf-8") == original
+    quiz_me = (vault_path / ".claude" / "commands" / "quiz-me.md").read_text(
+        encoding="utf-8"
+    )
+    assert "quiron evidence --add" in quiz_me

@@ -93,3 +93,31 @@ def test_migrate_json_reports_plan(tmp_path, capsys):
     result = json.loads(capsys.readouterr().out)
     assert result["status"] == "dry_run"
     assert any(line.startswith("create ") for line in result["changes"])
+
+
+def test_migrate_templates_only_updates_prompt_plumbing_without_seeding(
+    tmp_path, capsys
+):
+    vault_path = tmp_path / "vault"
+    knowledge_path = vault_path / "00-Meta" / "knowledge.json"
+    knowledge_path.parent.mkdir(parents=True)
+    original = '{"schema_version":2,"concepts":[]}\n'
+    knowledge_path.write_text(original, encoding="utf-8")
+
+    rc = main(
+        [
+            "migrate",
+            "--vault",
+            str(vault_path),
+            "--dry-run=false",
+            "--templates-only",
+        ]
+    )
+
+    assert rc == 0
+    assert "doctor:" not in capsys.readouterr().out
+    assert knowledge_path.read_text(encoding="utf-8") == original
+    quiz_me = (vault_path / ".opencode" / "commands" / "quiz-me.md").read_text(
+        encoding="utf-8"
+    )
+    assert "quiron evidence --add" in quiz_me

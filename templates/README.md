@@ -24,6 +24,10 @@ already has a `00-Meta/knowledge.json` — pass `--dry-run=false` to apply. Shar
 to genuinely diverge (not just different params) doesn't belong here at all — see
 `DECISIONS.md`'s Fase 6 entry on `session-close`/`wrap-up`.
 
+For a vault whose card format is not yet supported by Quiron's seeder, use
+`--dry-run=false --templates-only`. This updates the prompt plumbing and the
+managed `/quiz-me` evidence block without rewriting `knowledge.json`.
+
 Before Fase 7, this was manual copy-paste per vault — no longer needed, `quiron migrate` is the
 only way to sync a change here into a vault now.
 

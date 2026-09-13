@@ -46,6 +46,7 @@ def run_migrate(
     answers: dict,
     dry_run: bool = False,
     deck: str = "karpathy",
+    templates_only: bool = False,
 ) -> MigrateReport:
     """Run copier against `vault_path`, then seed + doctor the result.
 
@@ -55,13 +56,29 @@ def run_migrate(
     nothing to lose and can apply directly.
     """
     if dry_run:
-        return _run_migrate(vault_path, answers, dry_run=True, deck=deck)
+        return _run_migrate(
+            vault_path,
+            answers,
+            dry_run=True,
+            deck=deck,
+            templates_only=templates_only,
+        )
     with vault_lock(Vault(root=vault_path)):
-        return _run_migrate(vault_path, answers, dry_run=False, deck=deck)
+        return _run_migrate(
+            vault_path,
+            answers,
+            dry_run=False,
+            deck=deck,
+            templates_only=templates_only,
+        )
 
 
 def _run_migrate(
-    vault_path: Path, answers: dict, dry_run: bool, deck: str
+    vault_path: Path,
+    answers: dict,
+    dry_run: bool,
+    deck: str,
+    templates_only: bool = False,
 ) -> MigrateReport:
     report = MigrateReport()
     knowledge_path = vault_path / "00-Meta" / "knowledge.json"
@@ -91,6 +108,8 @@ def _run_migrate(
         return report
 
     _sync_quiz_me_evidence(vault_path)
+    if templates_only:
+        return report
 
     vault = Vault(root=vault_path)
     existing = None

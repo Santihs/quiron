@@ -411,7 +411,13 @@ def cmd_migrate(args: argparse.Namespace) -> int:
         "resync_command": args.resync_command,
         "domain_framing": args.domain_framing,
     }
-    report = run_migrate(vault_path, answers, dry_run=dry_run, deck=args.deck)
+    report = run_migrate(
+        vault_path,
+        answers,
+        dry_run=dry_run,
+        deck=args.deck,
+        templates_only=args.templates_only,
+    )
 
     if args.json:
         result = {
@@ -722,6 +728,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="report what would change without writing; defaults to on for an "
         "existing vault (has 00-Meta/knowledge.json already) and off for a new "
         "one. Pass --dry-run=false to force apply.",
+    )
+    sp.add_argument(
+        "--templates-only",
+        action="store_true",
+        help="update prompt plumbing without seeding knowledge or running doctor",
     )
     sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_migrate)
