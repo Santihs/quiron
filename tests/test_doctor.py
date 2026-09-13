@@ -1,9 +1,19 @@
 from datetime import date
 from unittest.mock import patch
 
+import pytest
+
 from quiron.doctor import run
 from quiron.schema import CardRef, Concept, Doubt, Evidence, Knowledge
 from quiron.vault import Vault
+
+
+@pytest.fixture(autouse=True)
+def mock_anki_status():
+    with patch(
+        "quiron.doctor.ankiconnect.status", return_value={"state": "unavailable"}
+    ):
+        yield
 
 
 def test_doctor_lists_dangling_ref(vault):
