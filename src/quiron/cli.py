@@ -764,7 +764,7 @@ def run_voice(command: str, rest: list[str]) -> int:
     except ImportError:
         print(
             "quiron voice is not installed. From the quiron repo run:\n"
-            "  uv tool install --from ./packages/quiron-voice 'quiron-voice[all]'\n"
+            "  uv tool install './packages/quiron-voice[all]'\n"
             "or, inside the repo: uv sync --package quiron-voice --extra all",
             file=sys.stderr,
         )

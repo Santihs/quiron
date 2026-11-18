@@ -98,7 +98,12 @@ class WhisperSTT:  # pragma: no cover - real model
             self._model = WhisperModel(
                 self.model_name, device=self.device.whisper, compute_type=self.device.compute_type
             )
-            self._model.transcribe(np.zeros(16_000, dtype=np.float32), language="en")  # warm up
+            # Warm up the real decode path. Silence + VAD would filter everything out,
+            # leaving CUDA kernel init for the first user answer (~2-3 s on a 3050).
+            t = np.arange(16_000, dtype=np.float32) / 16_000
+            tone = (0.1 * np.sin(2 * np.pi * 220 * t)).astype(np.float32)
+            segments, _ = self._model.transcribe(tone, language="en", beam_size=1, vad_filter=False)
+            list(segments)  # transcribe is lazy: consume to actually run the decoder
 
     def transcribe(self, audio: np.ndarray, lang: str) -> list[Segment]:
         self.load()
