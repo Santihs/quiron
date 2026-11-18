@@ -45,7 +45,7 @@ def request(
             return protocol.decode(protocol.read_line(f))
 
 
-def spawn_server(extra_args: list[str] | None = None) -> subprocess.Popen[bytes]:  # pragma: no cover
+def spawn_server(extra_args: list[str] | None = None) -> subprocess.Popen[Any]:  # pragma: no cover
     """Start the daemon detached, with no console window on Windows."""
     cmd = [sys.executable, "-m", "quiron_voice.cli", "server", "run", *(extra_args or [])]
     log = open(paths.log_file(), "ab")

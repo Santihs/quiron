@@ -1,0 +1,1 @@
+Voice tools come from quiron's `quiron-voice` package: `qv-say`, `qv-answer` and `qv-server` must be on PATH (`uv tool install --from <quiron>/packages/quiron-voice 'quiron-voice[all]'`). The first call starts a warm GPU daemon by itself; if a command fails with "not installed" or "did not start", tell me the error and stop. Do not try to install anything.

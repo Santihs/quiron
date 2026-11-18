@@ -8,7 +8,7 @@ Response: one JSON object + "\\n": {"ok": true, ...} or {"ok": false, "error": .
 from __future__ import annotations
 
 import json
-from typing import Any, BinaryIO
+from typing import Any, Protocol
 
 OPS = frozenset({"say", "stop", "transcribe", "health", "shutdown"})
 MAX_LINE = 1 << 20  # 1 MiB of JSON is plenty for any spoken text
@@ -19,11 +19,18 @@ class ProtocolError(ValueError):
     pass
 
 
+class Reader(Protocol):
+    """Anything with file-like binary reads (socket makefile, BytesIO, rfile)."""
+
+    def read(self, size: int = ..., /) -> bytes: ...
+    def readline(self, size: int = ..., /) -> bytes: ...
+
+
 def encode(msg: dict[str, Any]) -> bytes:
     return (json.dumps(msg, ensure_ascii=False) + "\n").encode("utf-8")
 
 
-def read_line(f: BinaryIO) -> bytes:
+def read_line(f: Reader) -> bytes:
     line = f.readline(MAX_LINE + 1)
     if len(line) > MAX_LINE:
         raise ProtocolError("line too long")
@@ -55,7 +62,7 @@ def validate_request(msg: dict[str, Any]) -> dict[str, Any]:
     return msg
 
 
-def read_exact(f: BinaryIO, n: int) -> bytes:
+def read_exact(f: Reader, n: int) -> bytes:
     buf = bytearray()
     while len(buf) < n:
         part = f.read(n - len(buf))

@@ -63,8 +63,8 @@ class KokoroTTS:  # pragma: no cover - real model
         with self._lock:
             if self._pipes:
                 return
-            import torch
-            from kokoro import KModel, KPipeline
+            import torch  # pyright: ignore[reportMissingImports]  (tts extra)
+            from kokoro import KModel, KPipeline  # pyright: ignore[reportMissingImports]
 
             torch.set_grad_enabled(False)
             model = KModel(repo_id=self.repo).to(self.device.torch).eval()
@@ -93,7 +93,7 @@ class WhisperSTT:  # pragma: no cover - real model
             if self._model is not None:
                 return
             add_nvidia_dll_dirs()
-            from faster_whisper import WhisperModel
+            from faster_whisper import WhisperModel  # pyright: ignore[reportMissingImports]  (stt extra)
 
             self._model = WhisperModel(
                 self.model_name, device=self.device.whisper, compute_type=self.device.compute_type

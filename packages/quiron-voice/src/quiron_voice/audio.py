@@ -89,11 +89,11 @@ class Player:  # pragma: no cover - needs an audio device
         self._sd = sd
         self.rate = rate
 
-    def play(self, chunks: Callable[[], np.ndarray | None], cancel: threading.Event) -> None:
+    def play(self, next_chunk: Callable[[], np.ndarray | None], cancel: threading.Event) -> None:
         """Pull chunks until None (end) or `cancel` is set."""
         with self._sd.OutputStream(samplerate=self.rate, channels=1, dtype="float32") as out:
             while not cancel.is_set():
-                w = chunks()
+                w = next_chunk()
                 if w is None:
                     break
                 step = self.rate // 10  # 100 ms writes keep `stop` responsive

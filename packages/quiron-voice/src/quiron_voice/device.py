@@ -34,13 +34,13 @@ def choose(cuda: bool, mps: bool, force: str | None = None) -> Device:
 def probe(force: str | None = None) -> Device:  # pragma: no cover - hardware
     cuda = mps = False
     try:
-        import torch
+        import torch  # pyright: ignore[reportMissingImports]  (optional extra)
 
         cuda = torch.cuda.is_available()
         mps = torch.backends.mps.is_available()
     except ImportError:
         try:
-            import ctranslate2
+            import ctranslate2  # pyright: ignore[reportMissingImports]
 
             cuda = ctranslate2.get_cuda_device_count() > 0
         except ImportError:

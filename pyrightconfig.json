@@ -1,5 +1,5 @@
 {
-  "include": ["src", "tests"],
+  "include": ["src", "tests", "packages/quiron-voice/src", "packages/quiron-voice/tests"],
   "venvPath": ".",
   "venv": ".venv",
   "pythonVersion": "3.12",

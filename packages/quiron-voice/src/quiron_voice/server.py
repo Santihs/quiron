@@ -12,7 +12,8 @@ import queue
 import socketserver
 import sys
 import threading
-from typing import Any, Protocol
+from collections.abc import Callable
+from typing import Any, Protocol, cast
 
 import numpy as np
 
@@ -25,7 +26,7 @@ log = logging.getLogger("quiron_voice.server")
 
 
 class Sink(Protocol):
-    def play(self, next_chunk: Any, cancel: threading.Event) -> None: ...
+    def play(self, next_chunk: Callable[[], np.ndarray | None], cancel: threading.Event) -> None: ...
 
 
 _END = object()
@@ -137,17 +138,16 @@ class VoiceService:
 
 
 class _Handler(socketserver.StreamRequestHandler):
-    server: "VoiceServer"
-
     def handle(self) -> None:
+        srv = cast("VoiceServer", self.server)
         try:
             msg = protocol.validate_request(protocol.decode(protocol.read_line(self.rfile)))
             if msg["op"] == "shutdown":
                 self._reply(protocol.ok())
-                threading.Thread(target=self.server.shutdown, daemon=True).start()
+                threading.Thread(target=srv.shutdown, daemon=True).start()
                 return
             payload = protocol.read_exact(self.rfile, msg["nbytes"]) if msg["op"] == "transcribe" else b""
-            self._reply(self.server.service.handle(msg, payload))
+            self._reply(srv.service.handle(msg, payload))
         except protocol.ProtocolError as e:
             self._reply(protocol.err(str(e)))
         except Exception as e:

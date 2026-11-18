@@ -25,7 +25,7 @@ class FakeTTS:
             raise RuntimeError("no gpu")
         self.loaded = True
 
-    def synth(self, text, lang, voice, speed):
+    def synth(self, text: str, lang: str, voice: str | None, speed: float):
         self.calls.append((text, lang))
         time.sleep(self.delay)
         yield np.full(240, 0.5, dtype=np.float32)
@@ -70,14 +70,20 @@ def running():
         s.server_close()
 
 
+def _req(*args, **kwargs) -> dict:
+    resp = client.request(*args, **kwargs)
+    assert resp is not None
+    return resp
+
+
 def test_say_plays_each_sentence_normalized():
-    sink = FakeSink()
-    svc = VoiceService(FakeTTS(), FakeSTT(), sink)
+    sink, tts = FakeSink(), FakeTTS()
+    svc = VoiceService(tts, FakeSTT(), sink)
     resp = svc.say("Uno. Dos.", "es")
     assert resp == {"ok": True, "spoken": 2, "cancelled": False}
     assert len(sink.played) == 2
     assert np.abs(sink.played[0]).max() == pytest.approx(0.97 * np.tanh(2.5), rel=1e-5)
-    assert svc.tts.calls == [("Uno.", "es"), ("Dos.", "es")]
+    assert tts.calls == [("Uno.", "es"), ("Dos.", "es")]
 
 
 def test_say_empty_text_is_noop():
@@ -96,7 +102,8 @@ def test_stop_interrupts_current_and_cancels_queued():
     t2.start()
     time.sleep(0.05)
     svc.stop()
-    t1.join(2), t2.join(2)
+    t1.join(2)
+    t2.join(2)
     assert results["a"]["cancelled"] is True
     assert results["b"] == {"ok": True, "spoken": 0, "cancelled": True}
     assert len(sink.played) == 1
@@ -104,9 +111,9 @@ def test_stop_interrupts_current_and_cancels_queued():
 
 def test_synth_error_surfaces():
     class Boom(FakeTTS):
-        def synth(self, *a):
+        def synth(self, text: str, lang: str, voice: str | None, speed: float):
             raise RuntimeError("kaboom")
-            yield  # pragma: no cover
+            yield np.zeros(0, dtype=np.float32)  # pragma: no cover
 
     svc = VoiceService(Boom(), FakeSTT(), FakeSink())
     with pytest.raises(RuntimeError, match="kaboom"):
@@ -123,16 +130,16 @@ def test_warm_reports_partial_failure():
 
 def test_socket_round_trip(running):
     port = running(VoiceService(FakeTTS(), FakeSTT(), FakeSink(), device="fake"))
-    assert client.request({"op": "health"}, port=port)["device"] == "fake"
-    assert client.request({"op": "say", "text": "Hola."}, port=port)["spoken"] == 1
+    assert _req({"op": "health"}, port=port)["device"] == "fake"
+    assert _req({"op": "say", "text": "Hola."}, port=port)["spoken"] == 1
     audio = np.zeros(1600, dtype=np.float32).tobytes()
-    resp = client.request({"op": "transcribe", "lang": "es", "nbytes": len(audio)}, audio, port=port)
+    resp = _req({"op": "transcribe", "lang": "es", "nbytes": len(audio)}, audio, port=port)
     assert resp["text"] == "es:1600" and resp["segments"][0][2] == "es:1600"
 
 
 def test_socket_rejects_bad_requests(running):
     port = running(VoiceService(FakeTTS(), FakeSTT(), FakeSink()))
-    resp = client.request({"op": "launch-missiles"}, port=port)
+    resp = _req({"op": "launch-missiles"}, port=port)
     assert resp["ok"] is False and "unknown op" in resp["error"]
 
 
@@ -144,7 +151,7 @@ def test_fire_and_forget_does_not_break_server(running):
     while not sink.played and time.time() < deadline:
         time.sleep(0.01)
     assert sink.played
-    assert client.request({"op": "health"}, port=port)["ok"]
+    assert _req({"op": "health"}, port=port)["ok"]
 
 
 def test_ensure_server_spawns_and_polls(monkeypatch):
