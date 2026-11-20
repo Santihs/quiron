@@ -81,8 +81,13 @@ def test_loudness_bounds_and_silence():
 
 
 def test_beep_shape():
-    b = beep(seconds=0.1, rate=1000)
+    b = beep(seconds=0.1, rate=1000, lead_s=0)
     assert b.shape == (100,) and b.dtype == np.float32 and abs(b[0]) < 1e-3
+
+
+def test_beep_leading_silence():
+    b = beep(seconds=0.1, rate=1000, lead_s=0.3)
+    assert b.shape == (400,) and not b[:300].any() and b[300:].any()
 
 
 def _tone(sec, amp=0.1, rate=16000):

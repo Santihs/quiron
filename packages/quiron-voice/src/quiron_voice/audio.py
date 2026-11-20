@@ -28,10 +28,20 @@ def loudness(wave: np.ndarray, drive: float = 2.5, ceiling: float = 0.97) -> np.
     return (np.tanh(drive * w / peak) * ceiling).astype(np.float32)
 
 
-def beep(freq: float = 880.0, seconds: float = 0.12, rate: int = TTS_RATE, volume: float = 0.4) -> np.ndarray:
+def beep(
+    freq: float = 880.0,
+    seconds: float = 0.25,
+    rate: int = TTS_RATE,
+    volume: float = 0.4,
+    lead_s: float = 0.3,
+) -> np.ndarray:
+    """Short tone. `lead_s` of leading silence lets USB/Bluetooth outputs wake
+    up first; without it they swallow the start of the stream and a short
+    beep goes missing entirely."""
     t = np.arange(int(rate * seconds), dtype=np.float32) / rate
     fade = np.minimum(1.0, np.minimum(t, t[::-1]) / 0.01).astype(np.float32)
-    return (np.sin(2 * np.pi * freq * t) * fade * volume).astype(np.float32)
+    tone = (np.sin(2 * np.pi * freq * t) * fade * volume).astype(np.float32)
+    return np.concatenate([np.zeros(int(rate * lead_s), dtype=np.float32), tone])
 
 
 def rms(chunk: np.ndarray) -> float:
