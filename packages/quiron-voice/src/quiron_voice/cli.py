@@ -67,6 +67,7 @@ def answer_parser() -> argparse.ArgumentParser:
     p.add_argument("--es", action="store_true", help="Spanish")
     p.add_argument("--target", type=int, help="target answer length in seconds (report only)")
     p.add_argument("--silence", type=float, default=3.0, help="seconds of quiet that end the answer")
+    p.add_argument("--threshold", type=float, default=0.004, help="RMS level counted as speech (lower = more sensitive)")
     p.add_argument("--max", type=float, default=240.0, help="hard cap in seconds")
     p.add_argument("--no-beep", action="store_true")
     p.add_argument("--json", action="store_true", help="machine-readable output")
@@ -92,7 +93,7 @@ def answer(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - need
 
             sd.play(beep(880), 24_000, blocking=True)
 
-    detector = SilenceDetector(silence_s=a.silence, max_s=a.max)
+    detector = SilenceDetector(silence_s=a.silence, max_s=a.max, threshold=a.threshold)
     print("recording… (stops after %.0fs of silence)" % a.silence, file=sys.stderr)
     audio, spoken = record(detector, on_start=start_beep)
     if not a.no_beep:

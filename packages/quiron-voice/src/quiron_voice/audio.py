@@ -62,7 +62,7 @@ class SilenceDetector:
     silence_s: float = 3.0
     max_s: float = 240.0
     lead_s: float = 15.0
-    threshold: float = 0.012
+    threshold: float = 0.004  # quiet USB mics peak ~0.005-0.01 on soft syllables
 
     def __post_init__(self) -> None:
         self.elapsed = 0.0
