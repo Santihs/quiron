@@ -10,8 +10,12 @@ permissions:
 
 jobs:
   quality:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
 
     steps:
       - name: Check out repository
@@ -27,10 +31,15 @@ jobs:
         run: uv python install 3.12
 
       - name: Install project dependencies
-        run: uv sync --locked --dev
+        # all workspace packages, but NOT the tts/stt extras: CI has no GPU or
+        # audio device, and the voice tests run against fake engines.
+        run: uv sync --locked --dev --all-packages
 
       - name: Run tests
         run: uv run pytest -q
+
+      - name: Run voice package tests
+        run: uv run --package quiron-voice pytest packages/quiron-voice -q
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4

@@ -70,3 +70,9 @@ domain_framing:
     A short domain-specific clause quiz-reviewer.md inserts when checking
     topic notes for rigor (e.g. "or a math derivation skipping a step").
   default: "or a claim that doesn't hold up under scrutiny"
+
+voice_lang:
+  type: str
+  help: "Language the voice commands (/talk, /explain, /drill) speak and transcribe"
+  choices: [en, es]
+  default: en

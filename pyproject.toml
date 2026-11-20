@@ -15,9 +15,12 @@ quiron = "quiron.cli:main"
 [dependency-groups]
 dev = ["pytest>=8"]
 
+[tool.uv.workspace]
+members = ["packages/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
 [build-system]
-requires = ["uv_build>=0.9.15,<0.10.0"]
+requires = ["uv_build>=0.9.15,<0.11.0"]
 build-backend = "uv_build"
