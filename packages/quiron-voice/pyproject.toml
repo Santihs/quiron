@@ -1,0 +1,54 @@
+[project]
+name = "quiron-voice"
+version = "0.1.0"
+description = "GPU-first local voice loop (Kokoro TTS + faster-whisper STT) for quiron vaults"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy>=1.26",
+    "platformdirs>=4",
+    "sounddevice>=0.5",
+]
+
+[project.optional-dependencies]
+tts = [
+    "kokoro>=0.9",
+    "soundfile>=0.12",
+    "torch>=2.6",
+    # kokoro's misaki installs its spacy model with pip at first run
+    "pip",
+]
+stt = [
+    "faster-whisper>=1.1",
+    "nvidia-cublas-cu12; sys_platform == 'win32' or sys_platform == 'linux'",
+    "nvidia-cudnn-cu12>=9,<10; sys_platform == 'win32' or sys_platform == 'linux'",
+]
+all = ["quiron-voice[tts,stt]"]
+
+[project.scripts]
+qv-say = "quiron_voice.cli:say_main"
+qv-answer = "quiron_voice.cli:answer_main"
+qv-server = "quiron_voice.cli:server_main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'win32' or sys_platform == 'linux'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["gpu: needs real models plus GPU/audio device (run with -m gpu)"]
+addopts = "-m 'not gpu'"
+# socket tests: dump stacks instead of hanging silently if something deadlocks
+faulthandler_timeout = 30
+
+[build-system]
+requires = ["uv_build>=0.9.15,<0.11.0"]
+build-backend = "uv_build"

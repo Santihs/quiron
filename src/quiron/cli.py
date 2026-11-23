@@ -410,6 +410,7 @@ def cmd_migrate(args: argparse.Namespace) -> int:
         "topic_notes_path": args.topic_notes_path,
         "resync_command": args.resync_command,
         "domain_framing": args.domain_framing,
+        "voice_lang": args.voice_lang,
     }
     report = run_migrate(
         vault_path,
@@ -721,6 +722,13 @@ def build_parser() -> argparse.ArgumentParser:
         dest="domain_framing",
     )
     sp.add_argument(
+        "--voice-lang",
+        choices=["en", "es"],
+        default="en",
+        dest="voice_lang",
+        help="language the /talk, /explain and /drill voice commands speak",
+    )
+    sp.add_argument(
         "--dry-run",
         nargs="?",
         const="true",
@@ -746,6 +754,24 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+VOICE_COMMANDS = {"say": "say", "answer": "answer", "voice-server": "server"}
+
+
+def run_voice(command: str, rest: list[str]) -> int:
+    """Delegate to the optional quiron-voice package; core never imports torch."""
+    try:
+        from quiron_voice.cli import main as voice_main
+    except ImportError:
+        print(
+            "quiron voice is not installed. From the quiron repo run:\n"
+            "  uv tool install './packages/quiron-voice[all]'\n"
+            "or, inside the repo: uv sync --package quiron-voice --extra all",
+            file=sys.stderr,
+        )
+        return 2
+    return voice_main([VOICE_COMMANDS[command], *rest])
+
+
 def main(argv: list[str] | None = None) -> int:
     # Windows consoles default to cp1252, which can't encode em dashes or
     # the emoji tier markers `today` prints — force UTF-8 regardless of
@@ -754,6 +780,10 @@ def main(argv: list[str] | None = None) -> int:
         reconfigure = getattr(stream, "reconfigure", None)
         if callable(reconfigure):
             reconfigure(encoding="utf-8")
+
+    raw = list(sys.argv[1:] if argv is None else argv)
+    if raw and raw[0] in VOICE_COMMANDS:
+        return run_voice(raw[0], raw[1:])
 
     parser = build_parser()
     args = parser.parse_args(argv)

@@ -252,3 +252,21 @@ def test_run_migrate_templates_only_preserves_knowledge(tmp_path):
         encoding="utf-8"
     )
     assert "quiron evidence --add" in quiz_me
+
+
+@pytest.mark.parametrize("lang,flag", [("es", "--es"), ("en", None)])
+def test_run_migrate_renders_voice_commands(tmp_path, lang, flag):
+    vault_path = tmp_path / "vault"
+    run_migrate(vault_path, {**ANSWERS, "voice_lang": lang}, templates_only=True)
+
+    for tool in (".claude", ".opencode"):
+        for name in ("talk", "explain", "drill"):
+            text = (vault_path / tool / "commands" / f"{name}.md").read_text(encoding="utf-8")
+            assert "{{" not in text and "{%" not in text
+            assert "qv-say" in text
+            if name == "talk":
+                assert "qv-say --stop" in text
+            assert ("qv-say --es" in text) == (flag == "--es")
+
+    drill = (vault_path / ".claude" / "commands" / "drill.md").read_text(encoding="utf-8")
+    assert "04-Quiz-Bank/*.md" in drill and "qv-answer" in drill
